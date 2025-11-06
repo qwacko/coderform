@@ -240,11 +240,18 @@ resource "docker_container" "pgadmin" {
     "PGADMIN_DEFAULT_EMAIL=${local.pgadmin_email}",
     "PGADMIN_DEFAULT_PASSWORD=${local.pgadmin_password}",
     "PGADMIN_LISTEN_PORT=${var.pgadmin_port}",
+    "PGADMIN_CONFIG_PROXY_X_FOR_COUNT=1",
+    "PGADMIN_CONFIG_PROXY_X_PROTO_COUNT=1",
   ]
 
   networks_advanced {
     name    = var.internal_network_name
     aliases = ["pgadmin"]
+  }
+
+  # Also connect to bridge network so workspace can reach via host.docker.internal
+  networks_advanced {
+    name = "bridge"
   }
 
   volumes {
