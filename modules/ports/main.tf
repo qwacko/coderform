@@ -14,6 +14,7 @@ data "coder_parameter" "ports_count" {
   description = "Number of ports to expose as Apps"
   type        = "number"
   default     = var.default_ports_count
+  mutable     = true
   option {
     name  = "0"
     value = 0
@@ -41,6 +42,7 @@ data "coder_parameter" "port1_number" {
   description = "Port number for App #1"
   type        = "number"
   default     = var.default_ports.port1.number
+  mutable     = true
   order       = var.order_offset + 1
 }
 
@@ -50,6 +52,7 @@ data "coder_parameter" "port1_title" {
   description = "Display name for App #1"
   type        = "string"
   default     = var.default_ports.port1.title
+  mutable     = true
   order       = var.order_offset + 2
 }
 
@@ -59,6 +62,7 @@ data "coder_parameter" "port1_icon" {
   description = "Icon path for App #1"
   type        = "string"
   default     = var.default_ports.port1.icon
+  mutable     = true
   order       = var.order_offset + 3
 }
 
@@ -68,6 +72,7 @@ data "coder_parameter" "port1_share" {
   description = "Who can access App #1"
   type        = "string"
   default     = "owner"
+  mutable     = true
   option {
     name  = "Owner"
     value = "owner"
@@ -91,6 +96,7 @@ data "coder_parameter" "port2_number" {
   description = "Port number for App #2"
   type        = "number"
   default     = var.default_ports.port2.number
+  mutable     = true
   order       = var.order_offset + 5
 }
 
@@ -100,6 +106,7 @@ data "coder_parameter" "port2_title" {
   description = "Display name for App #2"
   type        = "string"
   default     = var.default_ports.port2.title
+  mutable     = true
   order       = var.order_offset + 6
 }
 
@@ -109,6 +116,7 @@ data "coder_parameter" "port2_icon" {
   description = "Icon path for App #2"
   type        = "string"
   default     = var.default_ports.port2.icon
+  mutable     = true
   order       = var.order_offset + 7
 }
 
@@ -118,6 +126,7 @@ data "coder_parameter" "port2_share" {
   description = "Who can access App #2"
   type        = "string"
   default     = "owner"
+  mutable     = true
   option {
     name  = "Owner"
     value = "owner"
@@ -141,6 +150,7 @@ data "coder_parameter" "port3_number" {
   description = "Port number for App #3"
   type        = "number"
   default     = var.default_ports.port3.number
+  mutable     = true
   order       = var.order_offset + 9
 }
 
@@ -150,6 +160,7 @@ data "coder_parameter" "port3_title" {
   description = "Display name for App #3"
   type        = "string"
   default     = var.default_ports.port3.title
+  mutable     = true
   order       = var.order_offset + 10
 }
 
@@ -159,6 +170,7 @@ data "coder_parameter" "port3_icon" {
   description = "Icon path for App #3"
   type        = "string"
   default     = var.default_ports.port3.icon
+  mutable     = true
   order       = var.order_offset + 11
 }
 
@@ -168,6 +180,7 @@ data "coder_parameter" "port3_share" {
   description = "Who can access App #3"
   type        = "string"
   default     = "owner"
+  mutable     = true
   option {
     name  = "Owner"
     value = "owner"
