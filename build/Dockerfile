@@ -7,7 +7,6 @@ ARG USER=coder
 RUN apt-get update && \
     apt-get install -y \
     sudo \
-    socat \
     curl \
     git \
     && rm -rf /var/lib/apt/lists/*

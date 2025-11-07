@@ -58,29 +58,3 @@ output "env_vars" {
   }
   sensitive = true
 }
-
-output "pgadmin_enabled" {
-  description = "Whether pgAdmin is enabled"
-  value       = local.pgadmin_enabled
-}
-
-output "pgadmin_email" {
-  description = "pgAdmin login email"
-  value       = local.pgadmin_email
-}
-
-output "pgadmin_password" {
-  description = "pgAdmin login password"
-  value       = local.pgadmin_password
-  sensitive   = true
-}
-
-output "pgadmin_url" {
-  description = "pgAdmin URL (internal)"
-  value       = local.pgadmin_enabled ? "http://pgadmin:${var.pgadmin_port}" : ""
-}
-
-output "pgadmin_app" {
-  description = "pgAdmin Coder app resource"
-  value       = local.pgadmin_enabled ? coder_app.pgadmin[0] : null
-}

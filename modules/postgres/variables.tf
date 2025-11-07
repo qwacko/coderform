@@ -69,34 +69,3 @@ variable "default_database" {
   type        = string
   default     = "appdb"
 }
-
-variable "default_pgadmin_enabled" {
-  description = "Whether pgAdmin is enabled by default"
-  type        = bool
-  default     = false
-}
-
-variable "default_pgadmin_email" {
-  description = "Default pgAdmin login email"
-  type        = string
-  default     = "admin@local.host"
-}
-
-variable "default_pgadmin_password" {
-  description = "Default pgAdmin login password"
-  type        = string
-  default     = "admin"
-  sensitive   = true
-}
-
-variable "pgadmin_port" {
-  description = "Port for pgAdmin web interface"
-  type        = number
-  default     = 5050
-}
-
-variable "pgadmin_proxy_count" {
-  description = "Number of reverse proxies in front of pgAdmin (Caddy + Coder = 2+)"
-  type        = number
-  default     = 3
-}
