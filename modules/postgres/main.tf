@@ -413,22 +413,22 @@ resource "coder_agent" "pgweb2" {
   arch = "amd64"
   os   = "linux"
 
+  # Note the single quotes around EOF: <<'EOF'
   startup_script = <<'EOF'
-#!/bin/sh
-set -eux
+  #!/bin/sh
+  set -eux
 
-# Example: run pgweb inside the agent
-# Install pgweb binary (Linux x64) – or use your package manager
-PGWEB_VERSION=0.14.4
-curl -fsSL -o /usr/local/bin/pgweb \
-  https://github.com/sosedoff/pgweb/releases/download/v${PGWEB_VERSION}/pgweb_linux_amd64
-chmod +x /usr/local/bin/pgweb
+  PGWEB_VERSION=0.14.4
+  curl -fsSL -o /usr/local/bin/pgweb \
+    https://github.com/sosedoff/pgweb/releases/download/v${PGWEB_VERSION}/pgweb_linux_amd64
+  chmod +x /usr/local/bin/pgweb
 
-# Start pgweb on 127.0.0.1:8081 (bind 0.0.0.0 if you prefer)
-pgweb --bind=127.0.0.1 --listen=8081 \
-  --host=postgres --user="${POSTGRES_USER:-postgres}" \
-  --pass="${POSTGRES_PASSWORD:-postgres}" --db="${POSTGRES_DB:-postgres}" &
-
+  # Start pgweb inside the agent. Using shell defaults like ${VAR:-...} is fine now.
+  pgweb --bind=127.0.0.1 --listen=8081 \
+    --host=postgres \
+    --user="${POSTGRES_USER:-postgres}" \
+    --pass="${POSTGRES_PASSWORD:-postgres}" \
+    --db="${POSTGRES_DB:-postgres}" &
 EOF
 }
 
