@@ -335,6 +335,7 @@ resource "coder_app" "cloudbeaver" {
   agent_id     = var.agent_id
   slug         = "cloudbeaver"
   display_name = "CloudBeaver"
+  group        = "Postgres"
   icon         = "/icon/database.svg"
   url          = "http://localhost:${var.cloudbeaver_port}"
   share        = "owner"
