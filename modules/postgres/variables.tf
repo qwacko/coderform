@@ -84,18 +84,6 @@ variable "pgweb_port" {
   default     = 8081
 }
 
-variable "default_cloudbeaver_enabled" {
-  description = "Whether CloudBeaver is enabled by default"
-  type        = bool
-  default     = false
-}
-
-variable "cloudbeaver_port" {
-  description = "Port for CloudBeaver web interface"
-  type        = number
-  default     = 8978
-}
-
 variable "default_mathesar_enabled" {
   description = "Whether Mathesar is enabled by default"
   type        = bool

@@ -89,16 +89,6 @@ data "coder_parameter" "enable_pgweb" {
   order       = var.order_offset + 5
 }
 
-data "coder_parameter" "enable_cloudbeaver" {
-  count       = data.coder_parameter.enable_postgres.value ? 1 : 0
-  name        = "Enable CloudBeaver"
-  description = "Web-based database manager (supports multiple DBs)"
-  type        = "bool"
-  default     = var.default_cloudbeaver_enabled
-  mutable     = true
-  order       = var.order_offset + 6
-}
-
 data "coder_parameter" "enable_mathesar" {
   count       = data.coder_parameter.enable_postgres.value ? 1 : 0
   name        = "Enable Mathesar"
@@ -106,7 +96,7 @@ data "coder_parameter" "enable_mathesar" {
   type        = "bool"
   default     = var.default_mathesar_enabled
   mutable     = true
-  order       = var.order_offset + 7
+  order       = var.order_offset + 6
 }
 
 data "coder_parameter" "enable_pgadmin" {
@@ -116,7 +106,7 @@ data "coder_parameter" "enable_pgadmin" {
   type        = "bool"
   default     = var.default_pgadmin_enabled
   mutable     = true
-  order       = var.order_offset + 8
+  order       = var.order_offset + 7
 }
 
 # ========== Derived Locals ==========
@@ -130,10 +120,9 @@ locals {
   host             = local.enabled ? "postgres" : ""
 
   # Database management tools
-  pgweb_enabled       = local.enabled && try(data.coder_parameter.enable_pgweb[0].value, false)
-  cloudbeaver_enabled = local.enabled && try(data.coder_parameter.enable_cloudbeaver[0].value, false)
-  mathesar_enabled    = local.enabled && try(data.coder_parameter.enable_mathesar[0].value, false)
-  pgadmin_enabled     = local.enabled && try(data.coder_parameter.enable_pgadmin[0].value, false)
+  pgweb_enabled   = local.enabled && try(data.coder_parameter.enable_pgweb[0].value, false)
+  mathesar_enabled = local.enabled && try(data.coder_parameter.enable_mathesar[0].value, false)
+  pgadmin_enabled  = local.enabled && try(data.coder_parameter.enable_pgadmin[0].value, false)
 }
 
 # ========== Postgres Volume ==========
@@ -271,91 +260,6 @@ resource "coder_app" "pgweb" {
   group        = var.app_group
   icon         = "/icon/database.svg"
   url          = "http://localhost:${var.pgweb_port}"
-  share        = "owner"
-  subdomain    = true
-}
-
-# ========== CloudBeaver Container ==========
-
-resource "docker_volume" "cloudbeaver_data" {
-  count = local.cloudbeaver_enabled ? 1 : 0
-  name  = "coder-${var.workspace_id}-cloudbeaver"
-
-  lifecycle {
-    ignore_changes = all
-  }
-
-
-  labels {
-    label = "coder.owner"
-    value = var.username
-  }
-  labels {
-    label = "coder.owner_id"
-    value = var.owner_id
-  }
-  labels {
-    label = "coder.workspace_id"
-    value = var.workspace_id
-  }
-  labels {
-    label = "coder.repository"
-    value = var.repository
-  }
-  labels {
-    label = "coder.workspace_name_at_creation"
-    value = var.workspace_name
-  }
-}
-
-resource "docker_container" "cloudbeaver" {
-  count   = local.cloudbeaver_enabled ? 1 : 0
-  image   = "dbeaver/cloudbeaver:latest"
-  name    = "coder-${var.workspace_id}-cloudbeaver"
-  restart = "unless-stopped"
-
-
-  networks_advanced {
-    name = var.internal_network_name
-    aliases = ["cloudbeaver"]
-  
-  }
-  
-  ports {
-    internal = var.cloudbeaver_port
-  }
-
-  volumes {
-    container_path = "/opt/cloudbeaver/workspace"
-    volume_name    = docker_volume.cloudbeaver_data[0].name
-  }
-
-  labels {
-    label = "coder.owner"
-    value = var.username
-  }
-  labels {
-    label = "coder.owner_id"
-    value = var.owner_id
-  }
-  labels {
-    label = "coder.workspace_id"
-    value = var.workspace_id
-  }
-  labels {
-    label = "coder.workspace_name"
-    value = var.workspace_name
-  }
-}
-
-resource "coder_app" "cloudbeaver" {
-  count        = local.cloudbeaver_enabled ? 1 : 0
-  agent_id     = var.agent_id
-  slug         = "cloudbeaver"
-  display_name = "CloudBeaver"
-  group        = var.app_group
-  icon         = "/icon/database.svg"
-  url          = "http://localhost:${var.cloudbeaver_port}"
   share        = "owner"
   subdomain    = true
 }

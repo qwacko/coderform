@@ -71,16 +71,6 @@ output "pgweb_url" {
   value       = local.pgweb_enabled ? "http://pgweb:${var.pgweb_port}" : ""
 }
 
-output "cloudbeaver_enabled" {
-  description = "Whether CloudBeaver is enabled"
-  value       = local.cloudbeaver_enabled
-}
-
-output "cloudbeaver_url" {
-  description = "CloudBeaver URL (internal)"
-  value       = local.cloudbeaver_enabled ? "http://cloudbeaver:${var.cloudbeaver_port}" : ""
-}
-
 output "mathesar_enabled" {
   description = "Whether Mathesar is enabled"
   value       = local.mathesar_enabled
@@ -111,12 +101,6 @@ output "proxy_specs" {
       local_port = var.pgweb_port
       host       = "pgweb"
       rport      = var.pgweb_port
-    }] : [],
-    local.cloudbeaver_enabled ? [{
-      name       = "cloudbeaver"
-      local_port = var.cloudbeaver_port
-      host       = "cloudbeaver"
-      rport      = var.cloudbeaver_port
     }] : [],
     local.mathesar_enabled ? [{
       name       = "mathesar"
