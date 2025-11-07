@@ -249,7 +249,7 @@ resource "coder_app" "pgweb" {
   agent_id     = var.agent_id
   slug         = "pgweb"
   display_name = "pgweb"
-  group        = "Postgres"
+  group        = var.app_group
   icon         = "/icon/database.svg"
   url          = "http://localhost:${var.pgweb_port}"
   share        = "owner"
@@ -334,7 +334,7 @@ resource "coder_app" "cloudbeaver" {
   agent_id     = var.agent_id
   slug         = "cloudbeaver"
   display_name = "CloudBeaver"
-  group        = "Postgres"
+  group        = var.app_group
   icon         = "/icon/database.svg"
   url          = "http://localhost:${var.cloudbeaver_port}"
   share        = "owner"
@@ -423,7 +423,7 @@ resource "coder_app" "mathesar" {
   agent_id     = var.agent_id
   slug         = "mathesar"
   display_name = "Mathesar"
-  group        = "Postgres"
+  group        = var.app_group
   icon         = "/icon/database.svg"
   url          = "http://localhost:${var.mathesar_port}"
   share        = "owner"
