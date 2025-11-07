@@ -175,7 +175,7 @@ resource "docker_container" "postgres" {
     "POSTGRES_USER=${local.user}",
     "POSTGRES_PASSWORD=${local.password}",
     "POSTGRES_DB=${local.database}",
-    "POSTGRES_HOST_AUTH_METHOD=scram-sha-256",
+    "POSTGRES_HOST_AUTH_METHOD=password",
   ]
 
   networks_advanced {
