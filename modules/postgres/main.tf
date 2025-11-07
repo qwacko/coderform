@@ -264,6 +264,8 @@ resource "docker_volume" "cloudbeaver_data" {
     ignore_changes = all
   }
 
+  
+
   labels {
     label = "coder.owner"
     value = var.username
@@ -291,6 +293,15 @@ resource "docker_container" "cloudbeaver" {
   image   = "dbeaver/cloudbeaver:latest"
   name    = "coder-${var.workspace_id}-cloudbeaver"
   restart = "unless-stopped"
+
+  networks_advanced {
+    name = var.internal_network_name
+  }
+
+  
+  ports {
+    internal = var.cloudbeaver_port
+  }
 
   networks_advanced {
     name = var.internal_network_name
