@@ -425,9 +425,9 @@ resource "coder_agent" "pgweb2" {
 
     pgweb --bind=127.0.0.1 --listen=8081 \
       --host=postgres \
-      --user="${POSTGRES_USER:-postgres}" \
-      --pass="${POSTGRES_PASSWORD:-postgres}" \
-      --db="${POSTGRES_DB:-postgres}" &
+      --user="coder" \
+      --pass="coder" \
+      --db="appdb" &
   EOT
 }
 
