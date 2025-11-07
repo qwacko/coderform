@@ -111,5 +111,5 @@ variable "mathesar_port" {
 variable "app_group" {
   description = "Group name for Coder apps (used to organize apps in the UI)"
   type        = string
-  default     = "Database"
+  default     = "Tools"
 }
