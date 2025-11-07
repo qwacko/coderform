@@ -223,6 +223,7 @@ resource "docker_container" "pgweb" {
 
   networks_advanced {
     name = var.internal_network_name
+    aliases = ["pgweb"]
   }
 
   labels {
@@ -249,7 +250,7 @@ resource "coder_app" "pgweb" {
   slug         = "pgweb"
   display_name = "pgweb"
   icon         = "/icon/database.svg"
-  url          = "http://host.docker.internal:${var.pgweb_port}"
+  url          = "http://pgweb:${var.pgweb_port}"
   share        = "owner"
   subdomain    = true
 }
@@ -265,6 +266,11 @@ resource "docker_volume" "cloudbeaver_data" {
   }
 
   
+
+  networks_advanced {
+    name = var.internal_network_name
+    aliases = ["cloudbeaver"]
+  }
 
   labels {
     label = "coder.owner"
@@ -297,7 +303,6 @@ resource "docker_container" "cloudbeaver" {
   networks_advanced {
     name = var.internal_network_name
   }
-
   
   ports {
     internal = var.cloudbeaver_port
@@ -333,7 +338,7 @@ resource "coder_app" "cloudbeaver" {
   display_name = "CloudBeaver"
   group        = "Postgres"
   icon         = "/icon/database.svg"
-  url          = "http://localhost:${var.cloudbeaver_port}"
+  url          = "http://cloudbeaver:${var.cloudbeaver_port}"
   share        = "owner"
   subdomain    = true
 }
