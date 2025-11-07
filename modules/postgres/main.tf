@@ -175,7 +175,7 @@ resource "docker_container" "postgres" {
     "POSTGRES_USER=${local.user}",
     "POSTGRES_PASSWORD=${local.password}",
     "POSTGRES_DB=${local.database}",
-    "POSTGRES_HOST_AUTH_METHOD=password",
+    "POSTGRES_HOST_AUTH_METHOD=md5",
   ]
 
   networks_advanced {
@@ -222,6 +222,7 @@ resource "docker_container" "pgweb" {
     "--user=${local.user}",
     "--pass=${local.password}",
     "--db=${local.database}",
+    "--sslmode=disable",
   ]
 
   ports {
