@@ -69,3 +69,41 @@ variable "default_database" {
   type        = string
   default     = "appdb"
 }
+
+# ========== Database Management Tools ==========
+
+variable "default_pgweb_enabled" {
+  description = "Whether pgweb is enabled by default"
+  type        = bool
+  default     = false
+}
+
+variable "pgweb_port" {
+  description = "Port for pgweb web interface"
+  type        = number
+  default     = 8081
+}
+
+variable "default_cloudbeaver_enabled" {
+  description = "Whether CloudBeaver is enabled by default"
+  type        = bool
+  default     = false
+}
+
+variable "cloudbeaver_port" {
+  description = "Port for CloudBeaver web interface"
+  type        = number
+  default     = 8978
+}
+
+variable "default_mathesar_enabled" {
+  description = "Whether Mathesar is enabled by default"
+  type        = bool
+  default     = false
+}
+
+variable "mathesar_port" {
+  description = "Port for Mathesar web interface"
+  type        = number
+  default     = 8000
+}

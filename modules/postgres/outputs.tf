@@ -58,3 +58,35 @@ output "env_vars" {
   }
   sensitive = true
 }
+
+# ========== Database Management Tools Outputs ==========
+
+output "pgweb_enabled" {
+  description = "Whether pgweb is enabled"
+  value       = local.pgweb_enabled
+}
+
+output "pgweb_url" {
+  description = "pgweb URL (internal)"
+  value       = local.pgweb_enabled ? "http://pgweb:${var.pgweb_port}" : ""
+}
+
+output "cloudbeaver_enabled" {
+  description = "Whether CloudBeaver is enabled"
+  value       = local.cloudbeaver_enabled
+}
+
+output "cloudbeaver_url" {
+  description = "CloudBeaver URL (internal)"
+  value       = local.cloudbeaver_enabled ? "http://cloudbeaver:${var.cloudbeaver_port}" : ""
+}
+
+output "mathesar_enabled" {
+  description = "Whether Mathesar is enabled"
+  value       = local.mathesar_enabled
+}
+
+output "mathesar_url" {
+  description = "Mathesar URL (internal)"
+  value       = local.mathesar_enabled ? "http://mathesar:${var.mathesar_port}" : ""
+}
