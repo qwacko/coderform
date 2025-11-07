@@ -418,9 +418,8 @@ resource "coder_agent" "pgweb2" {
     #!/bin/sh
     set -eux
 
-    PGWEB_VERSION=0.14.4
     curl -fsSL -o /usr/local/bin/pgweb \
-      https://github.com/sosedoff/pgweb/releases/download/v${PGWEB_VERSION}/pgweb_linux_amd64
+      https://github.com/sosedoff/pgweb/releases/download/v0.14.4/pgweb_linux_amd64
     chmod +x /usr/local/bin/pgweb
 
     pgweb --bind=127.0.0.1 --listen=8081 \
