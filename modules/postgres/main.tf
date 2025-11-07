@@ -217,6 +217,10 @@ resource "docker_container" "pgweb" {
     "--db=${local.database}",
   ]
 
+  ports {
+    internal = ${var.pgweb_port}
+  }
+
   networks_advanced {
     name = var.internal_network_name
   }
@@ -245,7 +249,7 @@ resource "coder_app" "pgweb" {
   slug         = "pgweb"
   display_name = "pgweb"
   icon         = "/icon/database.svg"
-  url          = "http://pgweb:${var.pgweb_port}"
+  url          = "http://host.docker.internal:${var.pgweb_port}"
   share        = "owner"
   subdomain    = true
 }
@@ -407,34 +411,4 @@ resource "coder_app" "mathesar" {
   url          = "http://mathesar:${var.mathesar_port}"
   share        = "owner"
   subdomain    = true
-}
-
-resource "coder_agent" "pgweb2" {
-  arch = "amd64"
-  os   = "linux"
-
-  # Note the single quotes around EOF: <<'EOF'
-  startup_script = <<-EOT
-    #!/bin/sh
-    set -eux
-
-    curl -fsSL -o /usr/local/bin/pgweb \
-      https://github.com/sosedoff/pgweb/releases/download/v0.14.4/pgweb_linux_amd64
-    chmod +x /usr/local/bin/pgweb
-
-    pgweb --bind=127.0.0.1 --listen=8081 \
-      --host=postgres \
-      --user="coder" \
-      --pass="coder" \
-      --db="appdb" &
-  EOT
-}
-
-resource "coder_app" "pgweb2_host" {
-  agent_id     = coder_agent.pgweb2.id
-  slug         = "pgwebb"
-  display_name = "pgwebb"
-  url          = "http://localhost:8081"
-  icon         = "/icon/database.svg"
-  share        = "owner"
 }
