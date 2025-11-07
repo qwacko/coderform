@@ -432,8 +432,8 @@ resource "coder_agent" "pgweb2" {
 
 resource "coder_app" "pgweb2_host" {
   agent_id     = coder_agent.pgweb2.id
-  slug         = "pgweb"
-  display_name = "pgweb"
+  slug         = "pgwebb"
+  display_name = "pgwebb"
   url          = "http://localhost:8081"
   icon         = "/icon/database.svg"
   subdomain    = false
