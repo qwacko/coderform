@@ -218,7 +218,7 @@ resource "docker_container" "pgweb" {
   ]
 
   ports {
-    internal = ${var.pgweb_port}
+    internal = var.pgweb_port
   }
 
   networks_advanced {
