@@ -240,11 +240,11 @@ resource "docker_container" "pgadmin" {
     "PGADMIN_DEFAULT_EMAIL=${local.pgadmin_email}",
     "PGADMIN_DEFAULT_PASSWORD=${local.pgadmin_password}",
     "PGADMIN_LISTEN_PORT=${var.pgadmin_port}",
-    "PGADMIN_CONFIG_PROXY_X_FOR_COUNT=3",
-    "PGADMIN_CONFIG_PROXY_X_PROTO_COUNT=3",
-    "PGADMIN_CONFIG_PROXY_X_HOST_COUNT=3",
-    "PGADMIN_CONFIG_PROXY_X_PORT_COUNT=3",
-    "PGADMIN_CONFIG_PROXY_X_PREFIX_COUNT=3",
+    "PGADMIN_CONFIG_PROXY_X_FOR_COUNT=${var.pgadmin_proxy_count}",
+    "PGADMIN_CONFIG_PROXY_X_PROTO_COUNT=${var.pgadmin_proxy_count}",
+    "PGADMIN_CONFIG_PROXY_X_HOST_COUNT=${var.pgadmin_proxy_count}",
+    "PGADMIN_CONFIG_PROXY_X_PORT_COUNT=${var.pgadmin_proxy_count}",
+    "PGADMIN_CONFIG_PROXY_X_PREFIX_COUNT=${var.pgadmin_proxy_count}",
     "PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION=False",
     "PGADMIN_CONFIG_WTF_CSRF_CHECK_DEFAULT=False",
   ]
@@ -290,7 +290,7 @@ resource "coder_app" "pgadmin" {
   slug         = "pgadmin"
   display_name = "pgAdmin"
   icon         = "/icon/database.svg"
-  url          = "http://pgadmin:${var.pgadmin_port}"
+  url          = "http://localhost:${var.pgadmin_port}"
   share        = "owner"
   subdomain    = true
 }

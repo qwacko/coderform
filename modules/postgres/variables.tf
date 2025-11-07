@@ -94,3 +94,9 @@ variable "pgadmin_port" {
   type        = number
   default     = 5050
 }
+
+variable "pgadmin_proxy_count" {
+  description = "Number of reverse proxies in front of pgAdmin (Caddy + Coder = 2+)"
+  type        = number
+  default     = 3
+}
