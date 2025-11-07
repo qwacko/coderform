@@ -2,6 +2,14 @@
 
 A complete Coder workspace template for Node.js development with PostgreSQL, Valkey (Redis), and configurable ports.
 
+> **⚠️ This is a complete template, not a module**
+> This example includes a Dockerfile and build context, so it **cannot be imported as a module**. Instead, you should:
+> - **Copy** the entire directory to your Coder templates location
+> - **Clone** the repository and use this directory
+> - **Point Coder** directly at this directory in the Git repository
+>
+> See the [main README](../../README.md#how-to-use-examples) for detailed usage instructions.
+
 ## Features
 
 - **Node.js Environment**: Configurable Node.js versions (20, 22, 24, 25)

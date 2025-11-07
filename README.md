@@ -2,17 +2,75 @@
 
 Terraform modules and components for Coder workspaces, providing reusable infrastructure components for development environments.
 
-## Available Modules
+## Usage Patterns
+
+### Modules (Reusable Components)
+
+Modules are reusable infrastructure components that can be imported via `source`:
+
+```hcl
+module "postgres" {
+  source = "github.com/qwacko/coderform//modules/postgres"
+  # ...
+}
+```
+
+**Available Modules:**
+- **[Postgres](./modules/postgres/)** - PostgreSQL with management tools (pgweb, CloudBeaver, Mathesar)
+- **[Valkey](./modules/valkey/)** - Redis-compatible in-memory data store
+- **[Ports](./modules/ports/)** - Configurable port exposures
+
+### Examples (Complete Templates)
+
+Examples are **complete workspace configurations** meant to be copied and customized, not imported as modules. They include Dockerfiles and build contexts that must be local.
+
+**Available Examples:**
+- **[Node.js Workspace](./examples/nodejs/)** - Complete Node.js development environment with all modules integrated
+
+#### How to Use Examples
+
+**Option 1: Copy the Example** (Recommended)
+```bash
+# Copy the example to your workspace templates directory
+cp -r examples/nodejs /path/to/your/coder/templates/my-nodejs-workspace
+cd /path/to/your/coder/templates/my-nodejs-workspace
+
+# Customize as needed
+vim main.tf
+vim build/Dockerfile
+
+# Push to Coder
+coder templates push my-nodejs-workspace
+```
+
+**Option 2: Download as Starter**
+```bash
+# Download specific example
+curl -L https://github.com/qwacko/coderform/archive/refs/heads/main.tar.gz | \
+  tar xz --strip=2 coderform-main/examples/nodejs
+
+# Or clone the entire repository
+git clone https://github.com/qwacko/coderform.git
+cd coderform/examples/nodejs
+```
+
+**Option 3: Use as Template in Coder**
+
+In Coder, you can create a template directly from a Git repository:
+1. Point to the repository: `https://github.com/qwacko/coderform`
+2. Set directory: `examples/nodejs`
+3. Create template
+
+**Why Examples Can't Be Modules:**
+- Examples include `build/` directories with Dockerfiles
+- Docker build contexts require local files (can't reference remote paths)
+- Examples are complete workspace configurations, not composable components
+
+## Available Modules (Detailed)
 
 ### [Postgres Module](./modules/postgres/)
 
 PostgreSQL database with optional management tools (pgweb, CloudBeaver, Mathesar).
-
-**Features:**
-- Configurable PostgreSQL versions (15-18)
-- Persistent data storage
-- Optional web-based database management tools
-- Auto-configured port forwarding via `proxy_specs`
 
 **Quick Start:**
 ```hcl
@@ -181,29 +239,37 @@ curl -v http://localhost:8081
 
 ```
 coderform/
-├── modules/
-│   ├── postgres/           # PostgreSQL + management tools
+├── modules/               # Reusable components (import via source)
+│   ├── postgres/         # PostgreSQL + management tools
 │   │   ├── main.tf
 │   │   ├── variables.tf
 │   │   ├── outputs.tf
 │   │   └── README.md
-│   ├── valkey/            # Valkey (Redis-compatible)
+│   ├── valkey/           # Valkey (Redis-compatible)
 │   │   ├── main.tf
 │   │   ├── variables.tf
 │   │   └── outputs.tf
-│   └── ports/             # Port exposure management
+│   └── ports/            # Port exposure management
 │       ├── main.tf
 │       ├── variables.tf
 │       └── outputs.tf
-├── build/
-│   └── Dockerfile         # Workspace container image
-├── main_01.tf            # Example workspace configuration
-└── README.md             # This file
+├── examples/             # Complete templates (copy and customize)
+│   └── nodejs/          # Node.js workspace example
+│       ├── main.tf      # Complete configuration
+│       ├── build/
+│       │   └── Dockerfile
+│       └── README.md
+├── build/               # Build files for main_01.tf example
+│   └── Dockerfile
+├── main_01.tf          # Legacy example (use examples/nodejs instead)
+└── README.md           # This file
 ```
 
-## Example Workspace Configuration
+## Legacy Example (main_01.tf)
 
-See [main_01.tf](./main_01.tf) for a complete example including:
+The [main_01.tf](./main_01.tf) file is a legacy example. **Use [examples/nodejs/](./examples/nodejs/) instead** for a complete, documented template.
+
+The nodejs example includes:
 
 - Docker network and volume setup
 - Coder agent configuration with proxy forwarding
