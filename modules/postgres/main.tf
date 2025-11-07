@@ -436,6 +436,5 @@ resource "coder_app" "pgweb2_host" {
   display_name = "pgwebb"
   url          = "http://localhost:8081"
   icon         = "/icon/database.svg"
-  subdomain    = false
   share        = "owner"
 }
