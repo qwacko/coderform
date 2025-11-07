@@ -6,7 +6,7 @@ FROM ${NODE_BASE_IMAGE}
 # Install dependencies
 RUN apt-get update && \
     apt-get install -y \
-      curl git sudo vim wget tmux \
+      curl git sudo vim wget tmux jq socat \
     && rm -rf /var/lib/apt/lists/*
 
 # Add a new user

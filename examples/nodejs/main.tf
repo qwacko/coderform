@@ -126,19 +126,40 @@ resource "coder_agent" "main" {
   startup_script = <<-EOT
     set -e
 
+    # Force IPv4 resolution for Docker service containers
+    # Get IPv4 addresses and add to /etc/hosts to override IPv6 DNS
+    if command -v getent >/dev/null 2>&1; then
+      for service in postgres valkey pgweb cloudbeaver mathesar; do
+        ipv4=$(getent ahostsv4 "$service" 2>/dev/null | awk 'NR==1 {print $1}')
+        if [ -n "$ipv4" ]; then
+          echo "Adding IPv4 entry for $service: $ipv4"
+          echo "$ipv4 $service" | sudo tee -a /etc/hosts
+        fi
+      done
+    fi
+
+    # Port forwarding for postgres module services
+    PROXY_SPECS='${jsonencode(module.postgres.proxy_specs)}'
+    if [ "$PROXY_SPECS" != "[]" ] && [ "$PROXY_SPECS" != "" ]; then
+      echo "Setting up database management tool proxies..."
+      echo "$PROXY_SPECS" | jq -r '.[] | "Starting socat proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
+      echo "$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
+    fi
+
     # Install pnpm for the user shell
     curl -fsSL https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
   EOT
 
-  env = {
-    GIT_AUTHOR_NAME     = local.username
-    GIT_COMMITTER_NAME  = local.username
-    GIT_AUTHOR_EMAIL    = local.email
-    GIT_COMMITTER_EMAIL = local.email
-
-    NODE_BASE_IMAGE     = local.node_base_image
-
-  }
+  env = merge(
+    {
+      GIT_AUTHOR_NAME     = local.username
+      GIT_COMMITTER_NAME  = local.username
+      GIT_AUTHOR_EMAIL    = local.email
+      GIT_COMMITTER_EMAIL = local.email
+      NODE_BASE_IMAGE     = local.node_base_image
+    },
+    module.postgres.env_vars
+  )
 
   metadata {
     display_name = "CPU Usage"
@@ -310,5 +331,26 @@ resource "docker_container" "workspace" {
   labels {
     label = "coder.workspace_name"
     value = local.workspace_name
+  }
+}
+
+# ========== Debug Outputs ==========
+
+output "postgres_proxy_specs" {
+  description = "Debug: Shows what proxy specs are configured"
+  value       = module.postgres.proxy_specs
+}
+
+output "postgres_enabled" {
+  description = "Debug: Shows if postgres is enabled"
+  value       = module.postgres.enabled
+}
+
+output "postgres_management_tools" {
+  description = "Debug: Shows which management tools are enabled"
+  value = {
+    pgweb       = module.postgres.pgweb_enabled
+    cloudbeaver = module.postgres.cloudbeaver_enabled
+    mathesar    = module.postgres.mathesar_enabled
   }
 }
