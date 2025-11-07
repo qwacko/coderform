@@ -109,6 +109,16 @@ data "coder_parameter" "enable_mathesar" {
   order       = var.order_offset + 7
 }
 
+data "coder_parameter" "enable_pgadmin" {
+  count       = data.coder_parameter.enable_postgres.value ? 1 : 0
+  name        = "Enable pgAdmin"
+  description = "Full-featured PostgreSQL administration tool"
+  type        = "bool"
+  default     = var.default_pgadmin_enabled
+  mutable     = true
+  order       = var.order_offset + 8
+}
+
 # ========== Derived Locals ==========
 
 locals {
@@ -123,6 +133,7 @@ locals {
   pgweb_enabled       = local.enabled && try(data.coder_parameter.enable_pgweb[0].value, false)
   cloudbeaver_enabled = local.enabled && try(data.coder_parameter.enable_cloudbeaver[0].value, false)
   mathesar_enabled    = local.enabled && try(data.coder_parameter.enable_mathesar[0].value, false)
+  pgadmin_enabled     = local.enabled && try(data.coder_parameter.enable_pgadmin[0].value, false)
 }
 
 # ========== Postgres Volume ==========
@@ -434,6 +445,95 @@ resource "coder_app" "mathesar" {
   group        = var.app_group
   icon         = "/icon/database.svg"
   url          = "http://localhost:${var.mathesar_port}"
+  share        = "owner"
+  subdomain    = true
+}
+
+# ========== pgAdmin Container ==========
+
+resource "docker_volume" "pgadmin_data" {
+  count = local.pgadmin_enabled ? 1 : 0
+  name  = "coder-${var.workspace_id}-pgadmin"
+
+  lifecycle {
+    ignore_changes = all
+  }
+
+  labels {
+    label = "coder.owner"
+    value = var.username
+  }
+  labels {
+    label = "coder.owner_id"
+    value = var.owner_id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = var.workspace_id
+  }
+  labels {
+    label = "coder.repository"
+    value = var.repository
+  }
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = var.workspace_name
+  }
+}
+
+resource "docker_container" "pgadmin" {
+  count   = local.pgadmin_enabled ? 1 : 0
+  image   = "dpage/pgadmin4:latest"
+  name    = "coder-${var.workspace_id}-pgadmin"
+  restart = "unless-stopped"
+
+  env = [
+    "PGADMIN_DEFAULT_EMAIL=admin@coder.com",
+    "PGADMIN_DEFAULT_PASSWORD=admin",
+    "PGADMIN_CONFIG_SERVER_MODE=False",
+    "PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False",
+  ]
+
+  networks_advanced {
+    name    = var.internal_network_name
+    aliases = ["pgadmin"]
+  }
+
+  ports {
+    internal = 80
+  }
+
+  volumes {
+    container_path = "/var/lib/pgadmin"
+    volume_name    = docker_volume.pgadmin_data[0].name
+  }
+
+  labels {
+    label = "coder.owner"
+    value = var.username
+  }
+  labels {
+    label = "coder.owner_id"
+    value = var.owner_id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = var.workspace_id
+  }
+  labels {
+    label = "coder.workspace_name"
+    value = var.workspace_name
+  }
+}
+
+resource "coder_app" "pgadmin" {
+  count        = local.pgadmin_enabled ? 1 : 0
+  agent_id     = var.agent_id
+  slug         = "pgadmin"
+  display_name = "pgAdmin"
+  group        = var.app_group
+  icon         = "/icon/database.svg"
+  url          = "http://localhost:${var.pgadmin_port}"
   share        = "owner"
   subdomain    = true
 }

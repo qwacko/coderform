@@ -108,6 +108,18 @@ variable "mathesar_port" {
   default     = 8000
 }
 
+variable "default_pgadmin_enabled" {
+  description = "Whether pgAdmin is enabled by default"
+  type        = bool
+  default     = false
+}
+
+variable "pgadmin_port" {
+  description = "Port for pgAdmin web interface"
+  type        = number
+  default     = 8082
+}
+
 variable "app_group" {
   description = "Group name for Coder apps (used to organize apps in the UI)"
   type        = string

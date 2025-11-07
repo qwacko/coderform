@@ -91,6 +91,16 @@ output "mathesar_url" {
   value       = local.mathesar_enabled ? "http://mathesar:${var.mathesar_port}" : ""
 }
 
+output "pgadmin_enabled" {
+  description = "Whether pgAdmin is enabled"
+  value       = local.pgadmin_enabled
+}
+
+output "pgadmin_url" {
+  description = "pgAdmin URL (internal)"
+  value       = local.pgadmin_enabled ? "http://pgadmin:80" : ""
+}
+
 # ========== Port Forwarding Configuration ==========
 
 output "proxy_specs" {
@@ -113,6 +123,12 @@ output "proxy_specs" {
       local_port = var.mathesar_port
       host       = "mathesar"
       rport      = var.mathesar_port
+    }] : [],
+    local.pgadmin_enabled ? [{
+      name       = "pgadmin"
+      local_port = var.pgadmin_port
+      host       = "pgadmin"
+      rport      = 80
     }] : []
   )
 }
