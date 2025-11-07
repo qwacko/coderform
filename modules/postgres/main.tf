@@ -303,10 +303,6 @@ resource "docker_container" "cloudbeaver" {
     internal = var.cloudbeaver_port
   }
 
-  networks_advanced {
-    name = var.internal_network_name
-  }
-
   volumes {
     container_path = "/opt/cloudbeaver/workspace"
     volume_name    = docker_volume.cloudbeaver_data[0].name
