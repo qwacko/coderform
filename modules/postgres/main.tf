@@ -423,7 +423,6 @@ resource "coder_agent" "pgweb2" {
       https://github.com/sosedoff/pgweb/releases/download/v${PGWEB_VERSION}/pgweb_linux_amd64
     chmod +x /usr/local/bin/pgweb
 
-    # Start pgweb inside the agent. Using shell defaults like ${VAR:-...} is fine now.
     pgweb --bind=127.0.0.1 --listen=8081 \
       --host=postgres \
       --user="${POSTGRES_USER:-postgres}" \
