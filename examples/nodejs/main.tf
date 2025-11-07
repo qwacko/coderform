@@ -35,14 +35,57 @@ module "postgres" {
 module "valkey" {
   source = "github.com/qwacko/coderform//modules/valkey"
 
+  agent_id              = coder_agent.main.id
   workspace_id          = data.coder_workspace.me.id
   workspace_name        = data.coder_workspace.me.name
   username              = data.coder_workspace_owner.me.name
   owner_id              = data.coder_workspace_owner.me.id
   repository            = local.repository
   internal_network_name = docker_network.internal_network.name
-  
+
   order_offset = 80
+}
+
+module "mailhog" {
+  source = "github.com/qwacko/coderform//modules/mailhog"
+
+  agent_id              = coder_agent.main.id
+  workspace_id          = data.coder_workspace.me.id
+  workspace_name        = data.coder_workspace.me.name
+  username              = data.coder_workspace_owner.me.name
+  owner_id              = data.coder_workspace_owner.me.id
+  repository            = local.repository
+  internal_network_name = docker_network.internal_network.name
+
+  order_offset = 70
+}
+
+module "minio" {
+  source = "github.com/qwacko/coderform//modules/minio"
+
+  agent_id              = coder_agent.main.id
+  workspace_id          = data.coder_workspace.me.id
+  workspace_name        = data.coder_workspace.me.name
+  username              = data.coder_workspace_owner.me.name
+  owner_id              = data.coder_workspace_owner.me.id
+  repository            = local.repository
+  internal_network_name = docker_network.internal_network.name
+
+  order_offset = 60
+}
+
+module "apitesting" {
+  source = "github.com/qwacko/coderform//modules/apitesting"
+
+  agent_id              = coder_agent.main.id
+  workspace_id          = data.coder_workspace.me.id
+  workspace_name        = data.coder_workspace.me.name
+  username              = data.coder_workspace_owner.me.name
+  owner_id              = data.coder_workspace_owner.me.id
+  repository            = local.repository
+  internal_network_name = docker_network.internal_network.name
+
+  order_offset = 50
 }
 
 locals {
@@ -129,7 +172,7 @@ resource "coder_agent" "main" {
     # Force IPv4 resolution for Docker service containers
     # Get IPv4 addresses and add to /etc/hosts to override IPv6 DNS
     if command -v getent >/dev/null 2>&1; then
-      for service in postgres valkey pgweb cloudbeaver mathesar; do
+      for service in postgres valkey pgweb pgadmin mathesar redis-commander redisinsight mailhog minio hoppscotch; do
         ipv4=$(getent ahostsv4 "$service" 2>/dev/null | awk 'NR==1 {print $1}')
         if [ -n "$ipv4" ]; then
           echo "Adding IPv4 entry for $service: $ipv4"
@@ -138,10 +181,16 @@ resource "coder_agent" "main" {
       done
     fi
 
-    # Port forwarding for postgres module services
-    PROXY_SPECS='${jsonencode(module.postgres.proxy_specs)}'
+    # Port forwarding for module services
+    PROXY_SPECS='${jsonencode(concat(
+      module.postgres.proxy_specs,
+      module.valkey.proxy_specs,
+      module.mailhog.proxy_specs,
+      module.minio.proxy_specs,
+      module.apitesting.proxy_specs
+    ))}'
     if [ "$PROXY_SPECS" != "[]" ] && [ "$PROXY_SPECS" != "" ]; then
-      echo "Setting up database management tool proxies..."
+      echo "Setting up service proxies..."
       echo "$PROXY_SPECS" | jq -r '.[] | "Starting socat proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
       echo "$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
     fi
@@ -158,7 +207,11 @@ resource "coder_agent" "main" {
       GIT_COMMITTER_EMAIL = local.email
       NODE_BASE_IMAGE     = local.node_base_image
     },
-    module.postgres.env_vars
+    module.postgres.env_vars,
+    module.valkey.env_vars,
+    module.mailhog.env_vars,
+    module.minio.env_vars,
+    module.apitesting.env_vars
   )
 
   metadata {
@@ -336,21 +389,41 @@ resource "docker_container" "workspace" {
 
 # ========== Debug Outputs ==========
 
-output "postgres_proxy_specs" {
-  description = "Debug: Shows what proxy specs are configured"
-  value       = module.postgres.proxy_specs
+output "all_proxy_specs" {
+  description = "Debug: Shows all configured proxy specs from all modules"
+  value = concat(
+    module.postgres.proxy_specs,
+    module.valkey.proxy_specs,
+    module.mailhog.proxy_specs,
+    module.minio.proxy_specs,
+    module.apitesting.proxy_specs
+  )
 }
 
-output "postgres_enabled" {
-  description = "Debug: Shows if postgres is enabled"
-  value       = module.postgres.enabled
+output "modules_enabled" {
+  description = "Debug: Shows which modules are enabled"
+  value = {
+    postgres   = module.postgres.enabled
+    valkey     = module.valkey.enabled
+    mailhog    = module.mailhog.enabled
+    minio      = module.minio.enabled
+    apitesting = module.apitesting.enabled
+  }
 }
 
 output "postgres_management_tools" {
-  description = "Debug: Shows which management tools are enabled"
+  description = "Debug: Shows which postgres management tools are enabled"
   value = {
-    pgweb       = module.postgres.pgweb_enabled
-    cloudbeaver = module.postgres.cloudbeaver_enabled
-    mathesar    = module.postgres.mathesar_enabled
+    pgweb    = module.postgres.pgweb_enabled
+    pgadmin  = module.postgres.pgadmin_enabled
+    mathesar = module.postgres.mathesar_enabled
+  }
+}
+
+output "valkey_management_tools" {
+  description = "Debug: Shows which valkey management tools are enabled"
+  value = {
+    redis_commander = module.valkey.redis_commander_enabled
+    redisinsight    = module.valkey.redisinsight_enabled
   }
 }

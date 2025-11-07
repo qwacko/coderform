@@ -69,6 +69,28 @@ data "coder_parameter" "valkey_password" {
   order       = var.order_offset + 2
 }
 
+# ========== Redis Management Tools Parameters ==========
+
+data "coder_parameter" "enable_redis_commander" {
+  count       = data.coder_parameter.enable_valkey.value ? 1 : 0
+  name        = "Enable redis-commander"
+  description = "Lightweight Redis web management tool"
+  type        = "bool"
+  default     = var.default_redis_commander_enabled
+  mutable     = true
+  order       = var.order_offset + 3
+}
+
+data "coder_parameter" "enable_redisinsight" {
+  count       = data.coder_parameter.enable_valkey.value ? 1 : 0
+  name        = "Enable RedisInsight"
+  description = "Full-featured Redis GUI from Redis Ltd"
+  type        = "bool"
+  default     = var.default_redisinsight_enabled
+  mutable     = true
+  order       = var.order_offset + 4
+}
+
 # ========== Derived Locals ==========
 
 locals {
@@ -76,6 +98,10 @@ locals {
   version  = local.enabled ? data.coder_parameter.valkey_version[0].value : ""
   password = local.enabled ? data.coder_parameter.valkey_password[0].value : ""
   host     = local.enabled ? "valkey" : ""
+
+  # Redis management tools
+  redis_commander_enabled = local.enabled && try(data.coder_parameter.enable_redis_commander[0].value, false)
+  redisinsight_enabled    = local.enabled && try(data.coder_parameter.enable_redisinsight[0].value, false)
 }
 
 # ========== Valkey Volume ==========
@@ -150,4 +176,145 @@ resource "docker_container" "valkey" {
     label = "coder.workspace_name"
     value = var.workspace_name
   }
+}
+
+# ========== redis-commander Container ==========
+
+resource "docker_container" "redis_commander" {
+  count   = local.redis_commander_enabled ? 1 : 0
+  image   = "rediscommander/redis-commander:latest"
+  name    = "coder-${var.workspace_id}-redis-commander"
+  restart = "unless-stopped"
+
+  env = concat(
+    [
+      "REDIS_HOST=valkey",
+      "REDIS_PORT=6379",
+    ],
+    length(local.password) > 0 ? ["REDIS_PASSWORD=${local.password}"] : []
+  )
+
+  ports {
+    internal = var.redis_commander_port
+  }
+
+  networks_advanced {
+    name    = var.internal_network_name
+    aliases = ["redis-commander"]
+  }
+
+  labels {
+    label = "coder.owner"
+    value = var.username
+  }
+  labels {
+    label = "coder.owner_id"
+    value = var.owner_id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = var.workspace_id
+  }
+  labels {
+    label = "coder.workspace_name"
+    value = var.workspace_name
+  }
+}
+
+resource "coder_app" "redis_commander" {
+  count        = local.redis_commander_enabled ? 1 : 0
+  agent_id     = var.agent_id
+  slug         = "redis-commander"
+  display_name = "redis-commander"
+  group        = var.app_group
+  icon         = "/icon/memory.svg"
+  url          = "http://localhost:${var.redis_commander_port}"
+  share        = "owner"
+  subdomain    = true
+}
+
+# ========== RedisInsight Container ==========
+
+resource "docker_volume" "redisinsight_data" {
+  count = local.redisinsight_enabled ? 1 : 0
+  name  = "coder-${var.workspace_id}-redisinsight"
+
+  lifecycle {
+    ignore_changes = all
+  }
+
+  labels {
+    label = "coder.owner"
+    value = var.username
+  }
+  labels {
+    label = "coder.owner_id"
+    value = var.owner_id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = var.workspace_id
+  }
+  labels {
+    label = "coder.repository"
+    value = var.repository
+  }
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = var.workspace_name
+  }
+}
+
+resource "docker_container" "redisinsight" {
+  count   = local.redisinsight_enabled ? 1 : 0
+  image   = "redis/redisinsight:latest"
+  name    = "coder-${var.workspace_id}-redisinsight"
+  restart = "unless-stopped"
+
+  env = [
+    "REDIS_HOSTS=local:valkey:6379${length(local.password) > 0 ? ":${local.password}" : ""}",
+  ]
+
+  ports {
+    internal = var.redisinsight_port
+  }
+
+  networks_advanced {
+    name    = var.internal_network_name
+    aliases = ["redisinsight"]
+  }
+
+  volumes {
+    container_path = "/data"
+    volume_name    = docker_volume.redisinsight_data[0].name
+  }
+
+  labels {
+    label = "coder.owner"
+    value = var.username
+  }
+  labels {
+    label = "coder.owner_id"
+    value = var.owner_id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = var.workspace_id
+  }
+  labels {
+    label = "coder.workspace_name"
+    value = var.workspace_name
+  }
+}
+
+resource "coder_app" "redisinsight" {
+  count        = local.redisinsight_enabled ? 1 : 0
+  agent_id     = var.agent_id
+  slug         = "redisinsight"
+  display_name = "RedisInsight"
+  group        = var.app_group
+  icon         = "/icon/memory.svg"
+  url          = "http://localhost:${var.redisinsight_port}"
+  share        = "owner"
+  subdomain    = true
 }

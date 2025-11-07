@@ -40,3 +40,45 @@ output "env_vars" {
   }
   sensitive = true
 }
+
+# ========== Redis Management Tools Outputs ==========
+
+output "redis_commander_enabled" {
+  description = "Whether redis-commander is enabled"
+  value       = local.redis_commander_enabled
+}
+
+output "redis_commander_url" {
+  description = "redis-commander URL (internal)"
+  value       = local.redis_commander_enabled ? "http://redis-commander:${var.redis_commander_port}" : ""
+}
+
+output "redisinsight_enabled" {
+  description = "Whether RedisInsight is enabled"
+  value       = local.redisinsight_enabled
+}
+
+output "redisinsight_url" {
+  description = "RedisInsight URL (internal)"
+  value       = local.redisinsight_enabled ? "http://redisinsight:${var.redisinsight_port}" : ""
+}
+
+# ========== Port Forwarding Configuration ==========
+
+output "proxy_specs" {
+  description = "Port forwarding specifications for socat in the agent startup script"
+  value = concat(
+    local.redis_commander_enabled ? [{
+      name       = "redis-commander"
+      local_port = var.redis_commander_port
+      host       = "redis-commander"
+      rport      = var.redis_commander_port
+    }] : [],
+    local.redisinsight_enabled ? [{
+      name       = "redisinsight"
+      local_port = var.redisinsight_port
+      host       = "redisinsight"
+      rport      = var.redisinsight_port
+    }] : []
+  )
+}

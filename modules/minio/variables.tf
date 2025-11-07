@@ -1,3 +1,8 @@
+variable "agent_id" {
+  description = "The Coder agent ID (for MinIO app)"
+  type        = string
+}
+
 variable "workspace_id" {
   description = "The Coder workspace ID (used for naming resources)"
   type        = string
@@ -31,57 +36,38 @@ variable "internal_network_name" {
 variable "order_offset" {
   description = "Starting order number for parameters in Coder UI"
   type        = number
-  default     = 20
+  default     = 40
 }
 
 variable "default_enabled" {
-  description = "Whether Valkey is enabled by default"
+  description = "Whether MinIO is enabled by default"
   type        = bool
   default     = false
 }
 
-variable "default_version" {
-  description = "Default Valkey version tag"
+variable "default_root_user" {
+  description = "Default MinIO root user (access key)"
   type        = string
-  default     = "9-alpine"
+  default     = "minioadmin"
 }
 
-variable "default_password" {
-  description = "Default Valkey password (empty = no auth)"
+variable "default_root_password" {
+  description = "Default MinIO root password (secret key)"
   type        = string
-  default     = ""
+  default     = "minioadmin"
   sensitive   = true
 }
 
-variable "agent_id" {
-  description = "The Coder agent ID (for web UI apps)"
-  type        = string
-}
-
-# ========== Redis Management Tools ==========
-
-variable "default_redis_commander_enabled" {
-  description = "Whether redis-commander is enabled by default"
-  type        = bool
-  default     = false
-}
-
-variable "redis_commander_port" {
-  description = "Port for redis-commander web interface"
+variable "api_port" {
+  description = "MinIO API port"
   type        = number
-  default     = 8083
+  default     = 9000
 }
 
-variable "default_redisinsight_enabled" {
-  description = "Whether RedisInsight is enabled by default"
-  type        = bool
-  default     = false
-}
-
-variable "redisinsight_port" {
-  description = "Port for RedisInsight web interface"
+variable "console_port" {
+  description = "MinIO Console port"
   type        = number
-  default     = 5540
+  default     = 9001
 }
 
 variable "app_group" {
