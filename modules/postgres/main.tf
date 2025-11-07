@@ -240,8 +240,11 @@ resource "docker_container" "pgadmin" {
     "PGADMIN_DEFAULT_EMAIL=${local.pgadmin_email}",
     "PGADMIN_DEFAULT_PASSWORD=${local.pgadmin_password}",
     "PGADMIN_LISTEN_PORT=${var.pgadmin_port}",
-    "PGADMIN_CONFIG_PROXY_X_FOR_COUNT=1",
-    "PGADMIN_CONFIG_PROXY_X_PROTO_COUNT=1",
+    "PGADMIN_CONFIG_PROXY_X_FOR_COUNT=3",
+    "PGADMIN_CONFIG_PROXY_X_PROTO_COUNT=3",
+    "PGADMIN_CONFIG_PROXY_X_HOST_COUNT=3",
+    "PGADMIN_CONFIG_PROXY_X_PORT_COUNT=3",
+    "PGADMIN_CONFIG_PROXY_X_PREFIX_COUNT=3",
   ]
 
   networks_advanced {
