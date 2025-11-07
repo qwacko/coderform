@@ -336,7 +336,7 @@ resource "coder_app" "cloudbeaver" {
   slug         = "cloudbeaver"
   display_name = "CloudBeaver"
   icon         = "/icon/database.svg"
-  url          = "http://cloudbeaver:${var.cloudbeaver_port}"
+  url          = "http://localhost:${var.cloudbeaver_port}"
   share        = "owner"
   subdomain    = true
 }
@@ -385,10 +385,6 @@ resource "docker_container" "mathesar" {
     "DJANGO_SUPERUSER_PASSWORD=admin",
     "ALLOWED_HOSTS=*",
   ]
-
-  networks_advanced {
-    name = var.internal_network_name
-  }
 
   volumes {
     container_path = "/mathesar"
