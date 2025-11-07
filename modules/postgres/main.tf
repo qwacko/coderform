@@ -432,7 +432,7 @@ resource "coder_agent" "pgweb2" {
 }
 
 resource "coder_app" "pgweb2_host" {
-  agent_id     = coder_agent.dev.id
+  agent_id     = coder_agent.pgweb2.id
   slug         = "pgweb"
   display_name = "pgweb"
   url          = "http://localhost:8081"
