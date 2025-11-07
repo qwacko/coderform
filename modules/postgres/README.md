@@ -403,6 +403,27 @@ All containers are connected to the internal network specified by `internal_netw
 - `cloudbeaver` - CloudBeaver (if enabled)
 - `mathesar` - Mathesar (if enabled)
 
+### Remote Connections
+
+PostgreSQL is configured to accept remote connections from any host on the internal Docker network:
+
+- **Listen addresses**: `*` (all interfaces)
+- **Authentication**: `scram-sha-256` (secure password authentication)
+- **Max connections**: 100 (configurable via command line)
+
+This allows any container on the same Docker network to connect to PostgreSQL using the hostname `postgres` and port `5432`.
+
+**Example connection from workspace container:**
+```bash
+psql -h postgres -U $POSTGRES_USER -d $POSTGRES_DB
+```
+
+**Example connection from another container:**
+```bash
+# Add to your docker container env:
+DATABASE_URL=postgresql://coder:password@postgres:5432/appdb
+```
+
 ## Security Notes
 
 - Passwords are marked as `sensitive` in Terraform

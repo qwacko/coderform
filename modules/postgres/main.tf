@@ -165,10 +165,17 @@ resource "docker_container" "postgres" {
   name    = "coder-${var.workspace_id}-postgres"
   restart = "unless-stopped"
 
+  command = [
+    "postgres",
+    "-c", "listen_addresses=*",
+    "-c", "max_connections=100",
+  ]
+
   env = [
     "POSTGRES_USER=${local.user}",
     "POSTGRES_PASSWORD=${local.password}",
     "POSTGRES_DB=${local.database}",
+    "POSTGRES_HOST_AUTH_METHOD=scram-sha-256",
   ]
 
   networks_advanced {
