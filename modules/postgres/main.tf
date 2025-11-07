@@ -337,7 +337,6 @@ resource "coder_app" "cloudbeaver" {
   icon         = "/icon/database.svg"
   url          = "http://cloudbeaver:${var.cloudbeaver_port}"
   share        = "owner"
-  subdomain    = true
 }
 
 # ========== Mathesar Container ==========
