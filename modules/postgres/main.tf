@@ -222,7 +222,7 @@ resource "docker_container" "pgweb" {
     "--user=${local.user}",
     "--pass=${local.password}",
     "--db=${local.database}",
-    "--sslmode=disable",
+    "--ssl=disable",
   ]
 
   ports {
