@@ -249,8 +249,9 @@ resource "coder_app" "pgweb" {
   agent_id     = var.agent_id
   slug         = "pgweb"
   display_name = "pgweb"
+  group        = "Postgres"
   icon         = "/icon/database.svg"
-  url          = "http://pgweb:${var.pgweb_port}"
+  url          = "http://localhost:${var.pgweb_port}"
   share        = "owner"
   subdomain    = true
 }
@@ -335,8 +336,9 @@ resource "coder_app" "cloudbeaver" {
   display_name = "CloudBeaver"
   group        = "Postgres"
   icon         = "/icon/database.svg"
-  url          = "http://cloudbeaver:${var.cloudbeaver_port}"
+  url          = "http://localhost:${var.cloudbeaver_port}"
   share        = "owner"
+  subdomain    = true
 }
 
 # ========== Mathesar Container ==========
@@ -384,6 +386,15 @@ resource "docker_container" "mathesar" {
     "ALLOWED_HOSTS=*",
   ]
 
+  networks_advanced {
+    name    = var.internal_network_name
+    aliases = ["mathesar"]
+  }
+
+  ports {
+    internal = var.mathesar_port
+  }
+
   volumes {
     container_path = "/mathesar"
     volume_name    = docker_volume.mathesar_data[0].name
@@ -412,8 +423,9 @@ resource "coder_app" "mathesar" {
   agent_id     = var.agent_id
   slug         = "mathesar"
   display_name = "Mathesar"
+  group        = "Postgres"
   icon         = "/icon/database.svg"
-  url          = "http://mathesar:${var.mathesar_port}"
+  url          = "http://localhost:${var.mathesar_port}"
   share        = "owner"
   subdomain    = true
 }

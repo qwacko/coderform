@@ -9,6 +9,8 @@ RUN apt-get update && \
     sudo \
     curl \
     git \
+    jq \
+    socat \
     && rm -rf /var/lib/apt/lists/*
 
 # Create user

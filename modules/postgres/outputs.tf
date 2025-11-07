@@ -90,3 +90,29 @@ output "mathesar_url" {
   description = "Mathesar URL (internal)"
   value       = local.mathesar_enabled ? "http://mathesar:${var.mathesar_port}" : ""
 }
+
+# ========== Port Forwarding Configuration ==========
+
+output "proxy_specs" {
+  description = "Port forwarding specifications for socat in the agent startup script"
+  value = concat(
+    local.pgweb_enabled ? [{
+      name       = "pgweb"
+      local_port = var.pgweb_port
+      host       = "pgweb"
+      rport      = var.pgweb_port
+    }] : [],
+    local.cloudbeaver_enabled ? [{
+      name       = "cloudbeaver"
+      local_port = var.cloudbeaver_port
+      host       = "cloudbeaver"
+      rport      = var.cloudbeaver_port
+    }] : [],
+    local.mathesar_enabled ? [{
+      name       = "mathesar"
+      local_port = var.mathesar_port
+      host       = "mathesar"
+      rport      = var.mathesar_port
+    }] : []
+  )
+}

@@ -1,17 +1,17 @@
-# Coder Postgres Module
+# Postgres Module
 
-A Terraform module that provides PostgreSQL database functionality for Coder workspaces with optional pgAdmin web interface. This module creates user-configurable parameters and manages Postgres and pgAdmin containers with persistent storage.
+A Terraform module that provides PostgreSQL database functionality for Coder workspaces with optional database management tools. This module creates user-configurable parameters and manages Postgres containers with persistent storage.
 
 ## Features
 
-- User-configurable PostgreSQL instance through Coder parameters
-- Multiple PostgreSQL versions (15, 16, 17, 18)
-- Optional pgAdmin 4 web interface for database management
-- Persistent data storage using Docker volumes
-- Automatic network configuration
-- Connection strings and environment variable outputs
-- Mutable parameters (can be changed without recreating workspace)
-- Secure password handling
+- **PostgreSQL Database**: Configurable version, credentials, and database name
+- **Persistent Storage**: Database data persisted across workspace rebuilds
+- **Database Management Tools**: Optional web-based tools for database management
+  - **pgweb**: Lightweight PostgreSQL browser (Go-based)
+  - **CloudBeaver**: Full-featured database manager (supports multiple DBs)
+  - **Mathesar**: Modern spreadsheet-like interface for PostgreSQL
+- **Port Forwarding**: Automatic socat proxy configuration via `proxy_specs` output
+- **Environment Variables**: Easy integration with agent configuration
 
 ## Quick Start
 
@@ -28,10 +28,12 @@ module "postgres" {
   owner_id              = data.coder_workspace_owner.me.id
   repository            = local.repository
   internal_network_name = docker_network.internal_network.name
+
+  order_offset = 90
 }
 ```
 
-### With pgAdmin Enabled
+### With Management Tools Enabled
 
 ```hcl
 module "postgres" {
@@ -45,71 +47,79 @@ module "postgres" {
   repository            = local.repository
   internal_network_name = docker_network.internal_network.name
 
-  order_offset              = 10
+  order_offset              = 90
   default_enabled           = true
-  default_version           = "16-alpine"
-  default_user              = "myuser"
-  default_password          = "mypassword"
-  default_database          = "myapp"
-  default_pgadmin_enabled   = true
-  default_pgadmin_email     = "admin@example.com"
-  default_pgadmin_password  = "adminpassword"
+  default_version           = "17-alpine"
+  default_pgweb_enabled     = true  # Enable pgweb by default
 }
 ```
 
-### Using Outputs in Agent
+## Port Forwarding Configuration
+
+The module outputs `proxy_specs` which contains the port forwarding configuration for database management tools. This output **must** be used in your agent startup script to set up socat port forwarding.
+
+### Why Port Forwarding?
+
+Database management tools run in separate Docker containers. The Coder agent needs to access them via localhost for the web apps to work correctly. We use socat to forward localhost ports to the container ports.
+
+### proxy_specs Output Format
+
+```terraform
+output "proxy_specs" {
+  value = [
+    {
+      name       = "pgweb"
+      local_port = 8081
+      host       = "pgweb"
+      rport      = 8081
+    },
+    {
+      name       = "cloudbeaver"
+      local_port = 8978
+      host       = "cloudbeaver"
+      rport      = 8978
+    },
+    {
+      name       = "mathesar"
+      local_port = 8000
+      host       = "mathesar"
+      rport      = 8000
+    }
+  ]
+}
+```
+
+### Integration with Agent Startup Script
+
+Add this to your `coder_agent` startup script to enable port forwarding:
 
 ```hcl
-module "postgres" {
-  source = "github.com/qwacko/coderform//modules/postgres"
-  # ... required variables ...
-}
-
 resource "coder_agent" "main" {
-  # ... other config ...
+  # ... other configuration ...
 
-  env = merge(
-    {
-      # Your other env vars
-    },
-    module.postgres.env_vars
-  )
+  startup_script = <<-EOT
+    set -e
+
+    # Port forwarding for postgres module services
+    ${jsonencode(module.postgres.proxy_specs) != "[]" ? "PROXY_SPECS='${jsonencode(module.postgres.proxy_specs)}'" : ""}
+    if [ -n "$PROXY_SPECS" ] && [ "$PROXY_SPECS" != "[]" ]; then
+      echo "Setting up database management tool proxies..."
+      echo "$PROXY_SPECS" | jq -r '.[] | "Starting socat proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
+      echo "$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
+    fi
+
+    # Rest of your startup script...
+  EOT
 }
 ```
 
-## How It Works
+**Note**: This requires `jq` and `socat` to be installed in your workspace container. Add them to your Dockerfile:
 
-When you use this module:
-
-1. **Enable Postgres**: Users can enable/disable Postgres
-2. **Configure Database**: If enabled, users configure:
-   - PostgreSQL version
-   - Database user
-   - Password
-   - Database name
-3. **Optional pgAdmin**: Users can optionally enable pgAdmin:
-   - Login email
-   - Login password
-4. **Resource Creation**: Module creates:
-   - Postgres container with persistent volume
-   - pgAdmin container (if enabled) with persistent volume
-   - Coder app for pgAdmin web interface
-5. **Network Attachment**: Containers join internal network
-
-### Parameter Ordering
-
-Parameters are ordered as follows (assuming `order_offset = 10`):
-
-| Parameter | Order | Conditional |
-|-----------|-------|-------------|
-| Enable Postgres | 10 | Always shown |
-| Postgres Version | 11 | Only if Postgres enabled |
-| Postgres User | 12 | Only if Postgres enabled |
-| Postgres Password | 13 | Only if Postgres enabled |
-| Postgres Database | 14 | Only if Postgres enabled |
-| Enable pgAdmin | 15 | Only if Postgres enabled |
-| pgAdmin Email | 16 | Only if both Postgres and pgAdmin enabled |
-| pgAdmin Password | 17 | Only if both Postgres and pgAdmin enabled |
+```dockerfile
+RUN apt-get update && \
+    apt-get install -y socat jq && \
+    rm -rf /var/lib/apt/lists/*
+```
 
 ## Variables
 
@@ -117,7 +127,7 @@ Parameters are ordered as follows (assuming `order_offset = 10`):
 
 | Name | Type | Description |
 |------|------|-------------|
-| `agent_id` | `string` | Coder agent ID (for pgAdmin app) |
+| `agent_id` | `string` | Coder agent ID (for management tool apps) |
 | `workspace_id` | `string` | Coder workspace ID |
 | `workspace_name` | `string` | Coder workspace name |
 | `username` | `string` | Workspace owner username |
@@ -127,81 +137,110 @@ Parameters are ordered as follows (assuming `order_offset = 10`):
 
 ### Optional Variables
 
+#### PostgreSQL Configuration
+
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
 | `order_offset` | `number` | `10` | Starting order for parameters |
 | `default_enabled` | `bool` | `false` | Enable Postgres by default |
-| `default_version` | `string` | `"16-alpine"` | Default Postgres version |
+| `default_version` | `string` | `"18-alpine"` | Default Postgres version |
 | `default_user` | `string` | `"coder"` | Default database user |
-| `default_password` | `string` | `"coder"` | Default password |
+| `default_password` | `string` | `"coder"` | Default password (sensitive) |
 | `default_database` | `string` | `"appdb"` | Default database name |
-| `default_pgadmin_enabled` | `bool` | `false` | Enable pgAdmin by default |
-| `default_pgadmin_email` | `string` | `"admin@local.host"` | Default pgAdmin email |
-| `default_pgadmin_password` | `string` | `"admin"` | Default pgAdmin password |
-| `pgadmin_port` | `number` | `5050` | pgAdmin web interface port |
+
+#### Management Tools
+
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `default_pgweb_enabled` | `bool` | `false` | Enable pgweb by default |
+| `pgweb_port` | `number` | `8081` | Port for pgweb |
+| `default_cloudbeaver_enabled` | `bool` | `false` | Enable CloudBeaver by default |
+| `cloudbeaver_port` | `number` | `8978` | Port for CloudBeaver |
+| `default_mathesar_enabled` | `bool` | `false` | Enable Mathesar by default |
+| `mathesar_port` | `number` | `8000` | Port for Mathesar |
 
 ### Available PostgreSQL Versions
 
-- `18-alpine` - PostgreSQL 18 on Alpine Linux
+- `18-alpine` - PostgreSQL 18 on Alpine Linux (default)
 - `17-alpine` - PostgreSQL 17 on Alpine Linux
-- `16-alpine` - PostgreSQL 16 on Alpine Linux (default)
+- `16-alpine` - PostgreSQL 16 on Alpine Linux
 - `15-alpine` - PostgreSQL 15 on Alpine Linux
 
 ## Outputs
 
-### Postgres Outputs
+### Database Connection
 
 | Name | Type | Description |
 |------|------|-------------|
 | `enabled` | `bool` | Whether Postgres is enabled |
-| `host` | `string` | Postgres hostname |
-| `port` | `number` | Postgres port (5432) |
+| `host` | `string` | Postgres hostname (`"postgres"` or `""`) |
+| `port` | `number` | Postgres port (`5432`) |
 | `user` | `string` | Database user |
 | `password` | `string` | Database password (sensitive) |
 | `database` | `string` | Database name |
 | `version` | `string` | Postgres version tag |
 | `connection_string` | `string` | Full connection string (sensitive) |
-| `connection_string_sslmode_disable` | `string` | Connection string with sslmode=disable |
+| `connection_string_sslmode_disable` | `string` | Connection string with sslmode=disable (sensitive) |
 | `env_vars` | `map(string)` | Environment variables map (sensitive) |
 
-### pgAdmin Outputs
+### Management Tools
 
 | Name | Type | Description |
 |------|------|-------------|
-| `pgadmin_enabled` | `bool` | Whether pgAdmin is enabled |
-| `pgadmin_email` | `string` | pgAdmin login email |
-| `pgadmin_password` | `string` | pgAdmin password (sensitive) |
-| `pgadmin_url` | `string` | pgAdmin internal URL |
-| `pgadmin_app` | `object` | Coder app resource |
+| `pgweb_enabled` | `bool` | Whether pgweb is enabled |
+| `pgweb_url` | `string` | pgweb internal URL |
+| `cloudbeaver_enabled` | `bool` | Whether CloudBeaver is enabled |
+| `cloudbeaver_url` | `string` | CloudBeaver internal URL |
+| `mathesar_enabled` | `bool` | Whether Mathesar is enabled |
+| `mathesar_url` | `string` | Mathesar internal URL |
 
-### Using Outputs
+### Port Forwarding
 
-```hcl
-# Check if Postgres is enabled
-output "db_available" {
-  value = module.postgres.enabled
-}
+| Name | Type | Description |
+|------|------|-------------|
+| `proxy_specs` | `list(object)` | Port forwarding specifications for socat |
 
-# Get connection info
-output "db_url" {
-  value     = module.postgres.connection_string
-  sensitive = true
-}
+## Management Tool Details
 
-# Use environment variables in agent
-resource "coder_agent" "main" {
-  env = module.postgres.env_vars
-}
+### pgweb
 
-# Check if pgAdmin is available
-output "pgadmin_ready" {
-  value = module.postgres.pgadmin_enabled
-}
-```
+- **Auto-connects** to PostgreSQL on startup (no configuration needed)
+- **Lightweight** Go-based web interface
+- **Fast** and responsive
+- Perfect for quick database browsing and SQL queries
+- **Port**: 8081 (default)
+
+**Access**: Click "pgweb" in your Coder workspace apps
+
+### CloudBeaver
+
+- **Full-featured** database manager (similar to DBeaver Desktop)
+- Supports **multiple database types**
+- **ER diagrams** and schema visualization
+- Advanced SQL editor with autocomplete
+- **Port**: 8978 (default)
+- **Requires first-time setup** through web UI
+
+**Access**: Click "CloudBeaver" in your Coder workspace apps
+
+**Note**: On first launch, you'll need to create an admin user and add a connection to your PostgreSQL database manually.
+
+### Mathesar
+
+- **Spreadsheet-like interface** for non-technical users
+- Visual data exploration and editing
+- Table creation and schema management
+- **Port**: 8000 (default)
+- **Default credentials**: username `admin`, password `admin`
+- **Requires initial migration** on first launch (may take 1-2 minutes)
+
+**Access**: Click "Mathesar" in your Coder workspace apps
+
+**Note**: Mathesar auto-connects to your PostgreSQL database on startup.
 
 ## Environment Variables
 
-When using `module.postgres.env_vars`, the following environment variables are set:
+When using `module.postgres.env_vars`, the following environment variables are set in your agent:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
@@ -211,6 +250,21 @@ When using `module.postgres.env_vars`, the following environment variables are s
 | `POSTGRES_USER` | Database user | `"coder"` |
 | `POSTGRES_PASSWORD` | Database password | `"mypassword"` |
 | `POSTGRES_DB` | Database name | `"appdb"` |
+
+### Using Environment Variables
+
+```hcl
+resource "coder_agent" "main" {
+  # ... other config ...
+
+  env = merge(
+    {
+      MY_APP_VAR = "value"
+    },
+    module.postgres.env_vars
+  )
+}
+```
 
 ## Connection Examples
 
@@ -245,75 +299,78 @@ conn = psycopg2.connect(
 )
 ```
 
-### Go (lib/pq)
-
-```go
-import (
-    "database/sql"
-    "fmt"
-    "os"
-    _ "github.com/lib/pq"
-)
-
-connStr := fmt.Sprintf(
-    "host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-    os.Getenv("POSTGRES_HOST"),
-    os.Getenv("POSTGRES_PORT"),
-    os.Getenv("POSTGRES_USER"),
-    os.Getenv("POSTGRES_PASSWORD"),
-    os.Getenv("POSTGRES_DB"),
-)
-
-db, err := sql.Open("postgres", connStr)
-```
-
 ### CLI (psql)
 
 ```bash
 psql -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB
 
 # Or using connection string
-psql $POSTGRES_CONNECTION_STRING
+psql "$POSTGRES_CONNECTION_STRING"
 ```
 
-### Connection String Format
-
-```
-postgresql://user:password@host:5432/database
-postgresql://user:password@host:5432/database?sslmode=disable
-```
-
-## Using pgAdmin
-
-When pgAdmin is enabled, users can access it through the Coder dashboard:
-
-1. Click the "pgAdmin" app in your workspace
-2. Login with the configured email and password
-3. Add a new server connection:
-   - **Host**: `postgres`
-   - **Port**: `5432`
-   - **Username**: Your Postgres user
-   - **Password**: Your Postgres password
-   - **Database**: Your database name
-
-### Auto-Configure pgAdmin Connection
-
-You can create a startup script to pre-configure the Postgres connection in pgAdmin:
+## Complete Example
 
 ```hcl
-resource "coder_script" "configure_pgadmin" {
-  count       = module.postgres.pgadmin_enabled ? 1 : 0
-  agent_id    = coder_agent.main.id
-  display_name = "Configure pgAdmin"
-  run_on_start = true
-  script      = <<-EOT
-    #!/bin/bash
-    # Wait for pgAdmin to be ready
-    until curl -s http://pgadmin:${var.pgadmin_port} > /dev/null; do
-      sleep 2
-    done
+locals {
+  workspace_id   = data.coder_workspace.me.id
+  workspace_name = data.coder_workspace.me.name
+  username       = data.coder_workspace_owner.me.name
+  owner_id       = data.coder_workspace_owner.me.id
+  repository     = "https://github.com/example/repo"
+}
 
-    echo "pgAdmin is ready at: ${module.postgres.pgadmin_url}"
+data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
+
+resource "docker_network" "internal_network" {
+  name     = "coder-${local.workspace_id}-network"
+  driver   = "bridge"
+  internal = true
+}
+
+module "postgres" {
+  source = "github.com/qwacko/coderform//modules/postgres"
+
+  agent_id              = coder_agent.main.id
+  workspace_id          = local.workspace_id
+  workspace_name        = local.workspace_name
+  username              = local.username
+  owner_id              = local.owner_id
+  repository            = local.repository
+  internal_network_name = docker_network.internal_network.name
+
+  order_offset              = 90
+  default_enabled           = true
+  default_version           = "17-alpine"
+  default_user              = "appuser"
+  default_password          = "secure-password-123"
+  default_database          = "myapp_db"
+  default_pgweb_enabled     = true
+}
+
+resource "coder_agent" "main" {
+  arch = "amd64"
+  os   = "linux"
+
+  env = merge(
+    {
+      MY_APP_VAR = "value"
+    },
+    module.postgres.env_vars
+  )
+
+  startup_script = <<-EOT
+    set -e
+
+    # Port forwarding for postgres module services
+    ${jsonencode(module.postgres.proxy_specs) != "[]" ? "PROXY_SPECS='${jsonencode(module.postgres.proxy_specs)}'" : ""}
+    if [ -n "$PROXY_SPECS" ] && [ "$PROXY_SPECS" != "[]" ]; then
+      echo "Setting up database management tool proxies..."
+      echo "$PROXY_SPECS" | jq -r '.[] | "Starting socat proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
+      echo "$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
+    fi
+
+    # Your other startup commands...
   EOT
 }
 ```
@@ -327,141 +384,66 @@ The module creates Docker volumes that persist across workspace restarts:
 - Lifecycle: `ignore_changes = all`
 - Mount point: `/var/lib/postgresql/data`
 
-### pgAdmin Volume
-- Volume name: `coder-{workspace_id}-pgadmindata`
+### CloudBeaver Volume
+- Volume name: `coder-{workspace_id}-cloudbeaver`
 - Lifecycle: `ignore_changes = all`
-- Mount point: `/var/lib/pgadmin`
+- Mount point: `/opt/cloudbeaver/workspace`
+
+### Mathesar Volume
+- Volume name: `coder-{workspace_id}-mathesar`
+- Lifecycle: `ignore_changes = all`
+- Mount point: `/mathesar`
+
+## Network Configuration
+
+All containers are connected to the internal network specified by `internal_network_name`. The containers are accessible by their aliases:
+
+- `postgres` - PostgreSQL database
+- `pgweb` - pgweb (if enabled)
+- `cloudbeaver` - CloudBeaver (if enabled)
+- `mathesar` - Mathesar (if enabled)
 
 ## Security Notes
 
 - Passwords are marked as `sensitive` in Terraform
 - Postgres runs on the internal Docker network only
 - Not exposed to host machine or external networks
-- pgAdmin is only accessible through Coder's authenticated proxy
+- Management tools are only accessible through Coder's authenticated proxy
 - Use strong passwords in production environments
 
 ## Troubleshooting
 
 ### Can't connect to Postgres
 
-1. Verify Postgres is enabled: Check workspace parameters
+1. Verify Postgres is enabled in workspace parameters
 2. Check network: Ensure your app container is on the same Docker network
 3. Test connection: `docker exec coder-{workspace_id}-postgres psql -U {user} -d {database} -c "SELECT 1;"`
 
-### pgAdmin not loading
+### Management tool not loading (502 Bad Gateway)
 
-1. Verify pgAdmin is enabled: Check both Postgres and pgAdmin parameters
-2. Check container is running: `docker ps | grep pgadmin`
-3. Check logs: `docker logs coder-{workspace_id}-pgadmin`
-4. Wait 30-60 seconds after start - pgAdmin takes time to initialize
+1. Check if socat proxies are running: `ps aux | grep socat`
+2. Check proxy logs: `cat /tmp/proxy-{tool-name}.log`
+3. Verify container is running: `docker ps | grep {tool-name}`
+4. Check container logs: `docker logs coder-{workspace_id}-{tool-name}`
+5. Ensure `jq` and `socat` are installed in your workspace container
 
-### Can't login to pgAdmin
+### CloudBeaver requires setup
 
-1. Verify credentials: Check pgAdmin email and password in parameters
-2. Reset password: Update the pgAdmin password parameter and restart workspace
+CloudBeaver requires first-time configuration:
+1. Access CloudBeaver through Coder apps
+2. Create an admin user
+3. Add connection:
+   - Host: `postgres`
+   - Port: `5432`
+   - Database: Your database name
+   - Username: Your Postgres user
+   - Password: Your Postgres password
 
-### Connection refused in pgAdmin
+### Mathesar is slow to start
 
-When adding server in pgAdmin:
-- Use hostname `postgres` (not `localhost`)
-- Use port `5432`
-- Ensure you're using the correct Postgres credentials
-
-## Complete Example
-
-```hcl
-locals {
-  workspace_id   = data.coder_workspace.me.id
-  workspace_name = data.coder_workspace.me.name
-  username       = data.coder_workspace_owner.me.name
-  owner_id       = data.coder_workspace_owner.me.id
-}
-
-data "coder_workspace" "me" {}
-data "coder_workspace_owner" "me" {}
-
-resource "docker_network" "internal_network" {
-  name     = "coder-${local.workspace_id}-network"
-  driver   = "bridge"
-  internal = true
-}
-
-resource "coder_agent" "main" {
-  arch = "amd64"
-  os   = "linux"
-
-  env = merge(
-    {
-      MY_APP_VAR = "value"
-    },
-    module.postgres.env_vars
-  )
-}
-
-module "postgres" {
-  source = "./modules/postgres"
-
-  agent_id              = coder_agent.main.id
-  workspace_id          = local.workspace_id
-  workspace_name        = local.workspace_name
-  username              = local.username
-  owner_id              = local.owner_id
-  repository            = "https://github.com/example/repo"
-  internal_network_name = docker_network.internal_network.name
-
-  order_offset             = 10
-  default_enabled          = true
-  default_version          = "16-alpine"
-  default_user             = "appuser"
-  default_password         = "secure-password-123"
-  default_database         = "myapp_db"
-  default_pgadmin_enabled  = true
-  default_pgadmin_email    = "admin@example.com"
-  default_pgadmin_password = "pgadmin-password-456"
-  pgadmin_port             = 5050
-}
-
-# Optional: Output connection info
-output "database_url" {
-  value     = module.postgres.connection_string
-  sensitive = true
-}
-
-output "pgadmin_access" {
-  value = module.postgres.pgadmin_enabled ? {
-    email    = module.postgres.pgadmin_email
-    password = module.postgres.pgadmin_password
-  } : null
-  sensitive = true
-}
-```
-
-## Migration from Inline Configuration
-
-Replace this:
-
-```hcl
-# OLD: Inline Postgres configuration
-data "coder_parameter" "enable_postgres" { ... }
-data "coder_parameter" "postgres_version" { ... }
-resource "docker_volume" "postgres_data" { ... }
-resource "docker_container" "postgres" { ... }
-```
-
-With this:
-
-```hcl
-# NEW: Postgres module
-module "postgres" {
-  source                = "./modules/postgres"
-  agent_id              = coder_agent.main.id
-  workspace_id          = data.coder_workspace.me.id
-  workspace_name        = data.coder_workspace.me.name
-  username              = data.coder_workspace_owner.me.name
-  owner_id              = data.coder_workspace_owner.me.id
-  repository            = local.repository
-  internal_network_name = docker_network.internal_network.name
-}
+Mathesar runs Django migrations on first start, which can take 1-2 minutes. Check logs:
+```bash
+docker logs coder-{workspace_id}-mathesar
 ```
 
 ## Requirements
@@ -469,11 +451,8 @@ module "postgres" {
 - Terraform >= 1.0
 - Coder provider >= 2.4.0
 - Docker provider (kreuzwerker/docker)
+- Workspace container must have `jq` and `socat` installed
 
 ## Source
 
 This module is part of the [coderform](https://github.com/qwacko/coderform) repository.
-
-## License
-
-Same as the parent repository.
