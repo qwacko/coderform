@@ -191,8 +191,8 @@ locals {
   # Filter out empty commands
   active_install_commands = [for cmd in local.install_commands : cmd if cmd != ""]
 
-  # Build the complete installation script
-  install_script = length(local.active_install_commands) > 0 ? <<-EOT
+  # Build the complete installation script (when runtimes are enabled)
+  full_install_script = <<-EOT
     #!/bin/bash
     set -e
 
@@ -224,11 +224,13 @@ locals {
     }
 
     # Execute installations
-    ${join("\n", local.active_install_commands)}
+    ${join("\n    ", local.active_install_commands)}
 
     echo "✅ All runtimes installed successfully!"
   EOT
-  : "# No runtimes selected for installation"
+
+  # Choose between full script or empty comment
+  install_script = length(local.active_install_commands) > 0 ? local.full_install_script : "# No runtimes selected for installation"
 
   # Environment variables for runtime info
   env_vars = {
