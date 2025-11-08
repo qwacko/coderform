@@ -128,9 +128,58 @@ RUN apt-get install -y foo bar
 RUN rm -rf /var/lib/apt/lists/*
 ```
 
-## Additional Packages Pattern
+## Build-time Customization Patterns
 
-### Implementation
+### 1. Ubuntu Version Selection
+
+**Implementation:**
+
+**1. Coder Parameter**
+```hcl
+data "coder_parameter" "ubuntu_version" {
+  name    = "ubuntu_version"
+  type    = "string"
+  default = "latest"  # Uses ubuntu:latest (current LTS)
+
+  option { name = "Latest LTS (recommended)", value = "latest" }
+  option { name = "Ubuntu 24.04 LTS", value = "24.04" }
+  option { name = "Ubuntu 22.04 LTS", value = "22.04" }
+  option { name = "Ubuntu 20.04 LTS", value = "20.04" }
+}
+```
+
+**2. Dockerfile Build Arg** (MUST be before FROM)
+```dockerfile
+ARG UBUNTU_VERSION=latest
+FROM ubuntu:${UBUNTU_VERSION}
+```
+
+**Why "latest" is recommended:**
+- Docker's `ubuntu:latest` tag always points to the current LTS release
+- Automatically gets security updates when rebuilding images
+- Users can still pin to specific versions if needed for compatibility
+
+**3. Docker Build with Triggers**
+```hcl
+resource "docker_image" "workspace" {
+  build {
+    build_args = {
+      UBUNTU_VERSION = data.coder_parameter.ubuntu_version.value
+    }
+  }
+
+  # Force rebuild when version changes
+  triggers = {
+    ubuntu_version = data.coder_parameter.ubuntu_version.value
+  }
+}
+```
+
+**Important:** The ARG must come **before** the FROM statement for base image selection!
+
+### 2. Additional Packages Pattern
+
+**Implementation:**
 
 **1. Coder Parameter** (user choice)
 ```hcl
@@ -164,13 +213,13 @@ resource "docker_image" "workspace" {
 }
 ```
 
-### Why This Works
+**Why This Works:**
 
 - Users can specify: `"htop tmux vim"`
 - Docker interpolates: `apt-get install -y curl git htop tmux vim`
 - Empty string works fine: `apt-get install -y curl git `
 
-### Alternatives Considered
+**Alternatives Considered:**
 
 **Option A: Install in startup script**
 ```bash

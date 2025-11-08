@@ -34,23 +34,27 @@ locals {
 data "coder_parameter" "ubuntu_version" {
   name         = "ubuntu_version"
   display_name = "Ubuntu Version"
-  description  = "Ubuntu base image version"
+  description  = "Ubuntu base image version (latest = current LTS)"
   type         = "string"
-  default      = "22.04"
+  default      = "latest"
   mutable      = false
   order        = 5
 
   option {
-    name  = "Ubuntu 20.04 LTS (Focal)"
-    value = "20.04"
+    name  = "Latest LTS (recommended)"
+    value = "latest"
+  }
+  option {
+    name  = "Ubuntu 24.04 LTS (Noble)"
+    value = "24.04"
   }
   option {
     name  = "Ubuntu 22.04 LTS (Jammy)"
     value = "22.04"
   }
   option {
-    name  = "Ubuntu 24.04 LTS (Noble)"
-    value = "24.04"
+    name  = "Ubuntu 20.04 LTS (Focal)"
+    value = "20.04"
   }
 }
 
@@ -137,13 +141,15 @@ resource "docker_image" "workspace" {
     context    = "${path.module}/build"
     dockerfile = "Dockerfile"
     build_args = {
+      UBUNTU_VERSION      = data.coder_parameter.ubuntu_version.value
       ADDITIONAL_PACKAGES = data.coder_parameter.additional_packages.value
     }
   }
 
-  # Rebuild when packages parameter changes
+  # Rebuild when base image or packages parameter changes
   triggers = {
-    packages = data.coder_parameter.additional_packages.value
+    ubuntu_version = data.coder_parameter.ubuntu_version.value
+    packages       = data.coder_parameter.additional_packages.value
   }
 }
 

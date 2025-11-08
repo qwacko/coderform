@@ -4,10 +4,12 @@ A flexible Coder workspace template that allows you to install **multiple langua
 
 ## Features
 
+- **Configurable Ubuntu Version**: Choose from Ubuntu 20.04, 22.04, or 24.04 LTS
 - **Dynamic Runtime Installation**: Choose which runtimes to install at workspace creation
 - **Module-based Updates**: Runtime installation scripts are pulled from the module, making updates seamless
 - **Smart Caching**: Runtimes check if already installed to avoid reinstallation
 - **Mutable Parameters**: Change runtime versions without recreating the workspace
+- **Custom Packages**: Add additional apt packages via parameter
 - **Lightweight Base Image**: Base Ubuntu image stays small; runtimes installed during startup
 
 ## Supported Runtimes
@@ -45,22 +47,24 @@ module "runtime_installer" {
 }
 ```
 
-### 3. Add additional packages (optional)
+### 3. Configure workspace (optional)
 
-You can add extra apt packages in two ways:
+When creating a workspace, you can customize:
 
-**Option A: Via Coder Parameter** (recommended for user choice)
+**Ubuntu Version:**
+- Latest LTS (recommended) - default, automatically uses current Ubuntu LTS
+- Ubuntu 24.04 LTS (Noble)
+- Ubuntu 22.04 LTS (Jammy)
+- Ubuntu 20.04 LTS (Focal)
 
-When creating the workspace, users can specify packages in the "Additional apt packages" field:
+**Additional apt packages:**
+Specify extra packages to install in the base image:
 ```
 htop tmux neovim net-tools
 ```
 
-**Option B: Edit the Dockerfile** (for team-wide defaults)
-
-```dockerfile
-ARG ADDITIONAL_PACKAGES="htop tmux"  # Set default here
-```
+**Development Runtimes:**
+Choose which language runtimes to install (Node.js, Python, Go, Bun, Rust) and their versions.
 
 ### 4. Deploy to Coder
 
@@ -116,6 +120,19 @@ The Dockerfile removes apt package lists to reduce image size. This is safe beca
 - The runtime installer script runs `sudo apt-get update -qq` first
 - This re-downloads the package lists fresh before installing runtimes
 - Best practice for production Docker images
+
+### Ubuntu Version Compatibility
+
+All supported Ubuntu LTS versions work with the runtime installers:
+
+- **latest** (recommended): Always uses the current Ubuntu LTS release maintained by Docker. Currently points to 24.04, will automatically update when newer LTS versions are released.
+- **24.04 (Noble)**: Latest LTS, newest packages, may have compatibility issues with some older tools
+- **22.04 (Jammy)**: Previous LTS, stable and well-tested, good balance
+- **20.04 (Focal)**: Older LTS, mature and stable, wider package availability
+
+**Recommendation:** Use "latest" unless you need a specific version for compatibility. This ensures you get security updates and the newest Ubuntu features automatically.
+
+**Note:** The runtime installer scripts are designed to work across all LTS versions. If you encounter issues with a specific Ubuntu version, please report them.
 
 ## Performance Considerations
 

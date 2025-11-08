@@ -1,5 +1,6 @@
 # Base Ubuntu image - runtimes installed during startup
-FROM ubuntu:22.04
+ARG UBUNTU_VERSION=latest
+FROM ubuntu:${UBUNTU_VERSION}
 
 ARG ADDITIONAL_PACKAGES=""
 
