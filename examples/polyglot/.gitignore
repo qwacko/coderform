@@ -1,0 +1,9 @@
+# Generated files - do not commit
+build/install-runtimes.sh
+
+# Terraform files
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfplan

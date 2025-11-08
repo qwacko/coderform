@@ -79,6 +79,15 @@ module "runtime_installer" {
   order_offset = 100
 }
 
+# Write the runtime installation script to the build directory
+resource "local_file" "install_runtimes_script" {
+  content  = module.runtime_installer.install_script
+  filename = "${path.module}/build/install-runtimes.sh"
+
+  # Make the file executable
+  file_permission = "0755"
+}
+
 # ============================================================================
 # Optional Services
 # ============================================================================
@@ -146,11 +155,15 @@ resource "docker_image" "workspace" {
     }
   }
 
-  # Rebuild when base image or packages parameter changes
+  # Rebuild when base image, packages, or runtime selections change
   triggers = {
-    ubuntu_version = data.coder_parameter.ubuntu_version.value
-    packages       = data.coder_parameter.additional_packages.value
+    ubuntu_version    = data.coder_parameter.ubuntu_version.value
+    packages          = data.coder_parameter.additional_packages.value
+    runtime_script    = sha256(module.runtime_installer.install_script)
   }
+
+  # Ensure the install script is written before building
+  depends_on = [local_file.install_runtimes_script]
 }
 
 resource "docker_container" "workspace" {
@@ -208,11 +221,6 @@ resource "coder_agent" "main" {
     set -e
 
     echo "🚀 Starting workspace initialization..."
-
-    # =========================================================================
-    # Runtime Installation (pulled fresh from module on each start)
-    # =========================================================================
-    ${module.runtime_installer.install_script}
 
     # =========================================================================
     # Port Forwarding for External Services

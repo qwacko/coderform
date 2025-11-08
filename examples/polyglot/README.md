@@ -75,14 +75,26 @@ coder templates push polyglot
 
 ## How It Works
 
-### Startup Flow
+### Build & Startup Flow
 
-1. **Docker Build**: Base Ubuntu image built with system packages + additional packages
-2. **Container Starts**: Workspace container starts
-3. **Agent Initializes**: Coder agent starts
-4. **Runtime Installation**: Module-generated script runs, installing selected runtimes
-5. **Service Proxies**: Port forwarding set up for PostgreSQL/Valkey (if enabled)
-6. **Ready**: Workspace ready for development
+**During Docker Build (happens once per configuration):**
+1. Base Ubuntu image selected (latest/24.04/22.04/20.04)
+2. System packages + additional packages installed
+3. Coder user created with sudo privileges
+4. **Selected runtimes installed** (Node.js, Python, Go, Bun, Rust as selected)
+5. Image tagged and cached
+
+**During Workspace Startup (happens on each start):**
+1. Container starts from built image (runtimes already installed!)
+2. Coder agent initializes
+3. Port forwarding set up for PostgreSQL/Valkey (if enabled)
+4. Workspace ready for development
+
+**Key Benefit:** Runtimes are baked into the image, so:
+- Faster workspace startups (no installation delay)
+- Build errors are visible immediately
+- Changing runtime selections triggers automatic rebuild
+- Clean slate on every rebuild (no lingering installations)
 
 ### Module Updates and Script Loading
 
@@ -91,7 +103,8 @@ coder templates push polyglot
 1. When you run `terraform init`, Terraform downloads the module from GitHub to `.terraform/modules/`
 2. The `file("${path.module}/scripts/nodejs.sh")` function reads these scripts from the local copy
 3. Script contents are embedded into the Terraform plan
-4. Scripts are injected into the workspace's `startup_script`
+4. Scripts are written to `build/install-runtimes.sh` via `local_file` resource
+5. Dockerfile copies and executes the script during image build
 
 **To get updated runtime installers:**
 
@@ -136,16 +149,29 @@ All supported Ubuntu LTS versions work with the runtime installers:
 
 ## Performance Considerations
 
-**Startup Time**: Installing runtimes adds 1-5 minutes to first startup depending on selections:
-- Node.js: ~30 seconds
-- Python: ~1-2 minutes (includes PPA setup)
-- Go: ~30 seconds
-- Bun: ~10 seconds
-- Rust: ~2-3 minutes
+**Build Time vs Startup Time:**
 
-**Optimization**: Runtimes check if already installed, so rebuilds are fast if you don't change versions.
+**Docker Build** (happens when creating workspace or changing runtime selections):
+- Ubuntu base + packages: ~1 minute
+- Node.js: +30 seconds
+- Python: +1-2 minutes (includes PPA setup)
+- Go: +30 seconds
+- Bun: +10 seconds
+- Rust: +2-3 minutes
 
-**Alternative**: For faster startups, consider pre-building Docker images with runtimes included.
+**Total build time**: 1-7 minutes depending on runtime selections
+
+**Workspace Startup** (happens every time you start the workspace):
+- **<10 seconds** - Runtimes already installed in image!
+- Only port forwarding setup for services
+
+**Rebuild Behavior:**
+- Changing Ubuntu version → full rebuild
+- Changing additional packages → full rebuild
+- Changing runtime selections → full rebuild (clean slate)
+- No changes → uses cached image (instant)
+
+**Trade-off:** Longer initial build time for much faster daily startups!
 
 ## Environment Variables
 
@@ -163,33 +189,61 @@ Use these in your scripts to detect available runtimes.
 
 ## Troubleshooting
 
-### Check runtime installation logs
+### Runtime installation failed during build
 
-```bash
-# View agent startup logs in Coder UI
-# Or connect to workspace and check:
-cat /tmp/coder-startup-script.log
-```
+If the Docker build fails during runtime installation:
 
-### Manually reinstall a runtime
+1. **Check build logs** in Coder UI or CLI output
+2. **Inspect the generated script**:
+   ```bash
+   cat examples/polyglot/build/install-runtimes.sh
+   ```
+3. **Test locally** (if you have Docker):
+   ```bash
+   cd examples/polyglot/build
+   docker build --build-arg UBUNTU_VERSION=latest .
+   ```
 
-```bash
-# Connect to workspace
-coder ssh my-workspace
-
-# Source the installation functions
-source /tmp/coder-startup-script.log
-
-# Reinstall specific runtime
-install_nodejs 20
-```
+Common issues:
+- **Network errors**: Runtime installers need internet access during build
+- **PPA issues**: Ubuntu 24.04 may have Python PPA compatibility issues
+- **Version conflicts**: Try a different Ubuntu base version
 
 ### Runtime not in PATH
 
-Some runtimes add to `~/.bashrc`. Start a new shell:
+If a runtime is installed but not found:
 
 ```bash
+# Check if runtime is actually installed
+which node   # or python3, go, bun, rustc
+
+# If installed but not in PATH, reload shell
 exec bash -l
+
+# Or source bashrc
+source ~/.bashrc
+```
+
+### Verify installed runtimes
+
+```bash
+# Check what's installed
+node --version
+python3 --version
+go version
+bun --version
+rustc --version
+```
+
+### Force rebuild
+
+To force a complete rebuild (useful for testing):
+
+```bash
+# Change any parameter (like additional packages), then change it back
+# Or manually trigger via Coder CLI:
+coder stop my-workspace
+# Delete and recreate workspace
 ```
 
 ## Customization
