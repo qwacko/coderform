@@ -126,12 +126,7 @@ locals {
 
   # Startup script template (defined here to avoid heredoc-in-ternary parsing issues)
   startup_script_raw = <<-EOT
-    # Wait for PostgreSQL to be ready
-    echo "Waiting for PostgreSQL..."
-    until pg_isready -h ${local.host} -U ${local.user} >/dev/null 2>&1; do
-      sleep 1
-    done
-    echo "✅ PostgreSQL is ready"
+
   EOT
 }
 

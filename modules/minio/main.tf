@@ -51,12 +51,7 @@ locals {
 
   # Startup script template (defined here to avoid heredoc-in-ternary parsing issues)
   startup_script_raw = <<-EOT
-    # Wait for MinIO to be ready
-    echo "Waiting for MinIO..."
-    until curl -sf http://${local.host}:${var.api_port}/minio/health/live >/dev/null 2>&1; do
-      sleep 1
-    done
-    echo "✅ MinIO is ready"
+
   EOT
 }
 
