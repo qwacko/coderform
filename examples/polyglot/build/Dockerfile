@@ -8,7 +8,18 @@ FROM ubuntu:${UBUNTU_VERSION}
 # Install dependencies
 RUN apt-get update && \
     apt-get install -y \
-      curl git sudo vim wget tmux jq socat ${ADDITIONAL_PACKAGES} \
+      bash \
+      ca-certificates \
+      build-essential \
+      curl \
+      git \
+      jq \
+      socat \
+      sudo \
+      tmux \
+      vim \
+      wget \
+      ${ADDITIONAL_PACKAGES} \
     && rm -rf /var/lib/apt/lists/*
 
 # Add a new user
@@ -18,6 +29,7 @@ RUN useradd --groups sudo --shell /bin/bash ${USER} && \
     chmod 0440 /etc/sudoers.d/${USER}
 
 
+# Copy and run the runtime installation script
 COPY install-runtimes.sh /home/${USER}/install-runtimes.sh
 RUN chown ${USER}:${USER} /home/${USER}/install-runtimes.sh
 RUN chmod +x /home/${USER}/install-runtimes.sh

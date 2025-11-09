@@ -24,10 +24,8 @@ module "runtime_installer" {
 
 # Write the runtime installation script to the build directory
 resource "local_file" "install_runtimes_script" {
-  content  = "#!/bin/sh\n\r${module.runtime_installer.install_script}"
-  filename = "${path.module}/build/install-runtimes.sh"
-
-  # Make the file executable
+  content         = module.runtime_installer.install_script
+  filename        = "${path.module}/build/install-runtimes.sh"
   file_permission = "0755"
 }
 
@@ -303,23 +301,27 @@ resource "docker_image" "main" {
   build {
     context = "./build"
     build_args = {
-      USER            = local.username
-      UBUNTU_VERSION = local.ubuntu_version
+      USER                = local.username
+      UBUNTU_VERSION      = local.ubuntu_version
       ADDITIONAL_PACKAGES = local.additional_packages
-      SCRIPT = sha256(module.runtime_installer.install_script)
     }
   }
 
+  # Trigger rebuilds when any of these change:
+  # - Ubuntu version parameter changes
+  # - Additional packages parameter changes
+  # - Runtime selections change (detected via script content hash)
+  # - Dockerfile is modified
   triggers = {
-    # dir_sha1        = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1(f)]))
-    ubuntu_version = local.ubuntu_version
+    ubuntu_version      = local.ubuntu_version
     additional_packages = local.additional_packages
-    runtime_script    = sha256(module.runtime_installer.install_script)
+    runtime_script      = sha256(module.runtime_installer.install_script)
+    dockerfile          = filesha1("${path.module}/build/Dockerfile")
   }
 
-  
   # Ensure the install script is written before building
   depends_on = [local_file.install_runtimes_script]
+}
 }
 
 resource "docker_container" "workspace" {

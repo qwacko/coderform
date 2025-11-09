@@ -82,7 +82,8 @@ coder templates push polyglot
 2. System packages + additional packages installed
 3. Coder user created with sudo privileges
 4. **Selected runtimes installed** (Node.js, Python, Go, Bun, Rust as selected)
-5. Image tagged and cached
+5. Installation script saved to `~/install-runtimes.sh` for debugging
+6. Image tagged and cached
 
 **During Workspace Startup (happens on each start):**
 1. Container starts from built image (runtimes already installed!)
@@ -103,8 +104,8 @@ coder templates push polyglot
 1. When you run `terraform init`, Terraform downloads the module from GitHub to `.terraform/modules/`
 2. The `file("${path.module}/scripts/nodejs.sh")` function reads these scripts from the local copy
 3. Script contents are embedded into the Terraform plan
-4. Scripts are written to `build/install-runtimes.sh` via `local_file` resource
-5. Dockerfile copies and executes the script during image build
+4. Script is base64-encoded and passed as `RUNTIME_INSTALL_SCRIPT` build arg
+5. Dockerfile decodes and executes the script during image build
 
 **To get updated runtime installers:**
 
@@ -169,6 +170,7 @@ All supported Ubuntu LTS versions work with the runtime installers:
 - Changing Ubuntu version → full rebuild
 - Changing additional packages → full rebuild
 - Changing runtime selections → full rebuild (clean slate)
+- Modifying the Dockerfile → full rebuild
 - No changes → uses cached image (instant)
 
 **Trade-off:** Longer initial build time for much faster daily startups!
@@ -189,19 +191,34 @@ Use these in your scripts to detect available runtimes.
 
 ## Troubleshooting
 
+### Inspect the generated installation script
+
+The runtime installation script is saved in your workspace at `~/install-runtimes.sh` for debugging:
+
+```bash
+# View the script that was executed during build
+cat ~/install-runtimes.sh
+
+# Re-run it manually if needed (careful - may reinstall things!)
+bash ~/install-runtimes.sh
+```
+
 ### Runtime installation failed during build
 
 If the Docker build fails during runtime installation:
 
-1. **Check build logs** in Coder UI or CLI output
-2. **Inspect the generated script**:
+1. **Check build logs** in Coder UI or CLI output - the script output will be visible
+2. **After workspace starts**, inspect the script:
    ```bash
-   cat examples/polyglot/build/install-runtimes.sh
+   cat ~/install-runtimes.sh
    ```
-3. **Test locally** (if you have Docker):
+3. **Debug locally** (if you have Docker and Terraform):
    ```bash
-   cd examples/polyglot/build
-   docker build --build-arg UBUNTU_VERSION=latest .
+   cd examples/polyglot
+   terraform init
+   terraform apply  # This generates the script
+   # Extract and view the script that would be built:
+   terraform show -json | jq -r '.values.root_module.resources[] | select(.address=="docker_image.main") | .values.build.build_args.RUNTIME_INSTALL_SCRIPT' | base64 -d
    ```
 
 Common issues:
