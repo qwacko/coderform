@@ -74,3 +74,32 @@ output "proxy_specs" {
     }
   ] : []
 }
+
+# ========== Standard Module Outputs ==========
+
+output "startup_script" {
+  description = "Commands to run during agent startup"
+  value = local.enabled ? <<-EOT
+    # Wait for MinIO to be ready
+    echo "Waiting for MinIO..."
+    until curl -sf http://${local.host}:${var.api_port}/minio/health/live >/dev/null 2>&1; do
+      sleep 1
+    done
+    echo "✅ MinIO is ready"
+  EOT : ""
+}
+
+output "install_script" {
+  description = "Script to run during image build"
+  value       = ""
+}
+
+output "packages" {
+  description = "System packages required by this module"
+  value       = local.enabled ? ["curl"] : []
+}
+
+output "hostnames" {
+  description = "Docker container hostnames that need IPv4 resolution"
+  value       = local.enabled ? ["minio"] : []
+}

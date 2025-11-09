@@ -82,3 +82,37 @@ output "proxy_specs" {
     }] : []
   )
 }
+
+# ========== Standard Module Outputs ==========
+
+output "startup_script" {
+  description = "Commands to run during agent startup"
+  value = local.enabled ? <<-EOT
+    # Test Valkey connection
+    echo "Testing Valkey connection..."
+    if redis-cli -h ${local.host} ${length(local.password) > 0 ? "-a ${local.password}" : ""} ping >/dev/null 2>&1; then
+      echo "✅ Valkey is ready"
+    else
+      echo "⚠️  Valkey not ready yet"
+    fi
+  EOT : ""
+}
+
+output "install_script" {
+  description = "Script to run during image build"
+  value       = ""
+}
+
+output "packages" {
+  description = "System packages required by this module"
+  value       = local.enabled ? ["redis-tools"] : []
+}
+
+output "hostnames" {
+  description = "Docker container hostnames that need IPv4 resolution"
+  value = compact([
+    local.enabled ? "valkey" : "",
+    local.redis_commander_enabled ? "redis-commander" : "",
+    local.redisinsight_enabled ? "redisinsight" : ""
+  ])
+}

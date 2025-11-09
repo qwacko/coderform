@@ -116,3 +116,37 @@ output "proxy_specs" {
     }] : []
   )
 }
+
+# ========== Standard Module Outputs ==========
+
+output "startup_script" {
+  description = "Commands to run during agent startup"
+  value = local.enabled ? <<-EOT
+    # Wait for PostgreSQL to be ready
+    echo "Waiting for PostgreSQL..."
+    until pg_isready -h ${local.host} -U ${local.user} >/dev/null 2>&1; do
+      sleep 1
+    done
+    echo "✅ PostgreSQL is ready"
+  EOT : ""
+}
+
+output "install_script" {
+  description = "Script to run during image build"
+  value       = ""
+}
+
+output "packages" {
+  description = "System packages required by this module"
+  value       = local.enabled ? ["postgresql-client"] : []
+}
+
+output "hostnames" {
+  description = "Docker container hostnames that need IPv4 resolution"
+  value = compact([
+    local.enabled ? "postgres" : "",
+    local.pgweb_enabled ? "pgweb" : "",
+    local.mathesar_enabled ? "mathesar" : "",
+    local.pgadmin_enabled ? "pgadmin" : ""
+  ])
+}

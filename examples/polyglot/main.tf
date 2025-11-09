@@ -22,10 +22,11 @@ module "runtime_installer" {
   order_offset = 100
 }
 
-# Write the runtime installation script to the build directory
-resource "local_file" "install_runtimes_script" {
-  content         = module.runtime_installer.install_script
-  filename        = "${path.module}/build/install-runtimes.sh"
+# Write combined installation script to the build directory
+resource "local_file" "install_script" {
+  count           = local.combined_install_script != "" ? 1 : 0
+  content         = local.combined_install_script
+  filename        = "${path.module}/build/install.sh"
   file_permission = "0755"
 }
 
@@ -125,6 +126,73 @@ locals {
   repository     = data.coder_parameter.repository.value
 }
 
+# ============================================================================
+# Module Output Composition
+# ============================================================================
+
+locals {
+  # Combine packages from all modules
+  all_packages = distinct(concat(
+    module.postgres.packages,
+    module.valkey.packages,
+    module.runtime_installer.packages,
+    module.ports.packages,
+    # Split user-provided packages by space
+    split(" ", local.additional_packages)
+  ))
+
+  # Combine install scripts (run during Docker build)
+  combined_install_script = join("\n\n", compact([
+    module.postgres.install_script,
+    module.valkey.install_script,
+    module.runtime_installer.install_script,
+    module.ports.install_script
+  ]))
+
+  # Combine startup scripts (run during agent startup)
+  combined_startup_script = join("\n\n", compact([
+    module.postgres.startup_script,
+    module.valkey.startup_script,
+    module.runtime_installer.startup_script,
+    module.ports.startup_script
+  ]))
+
+  # Combine proxy specs
+  all_proxy_specs = concat(
+    module.postgres.proxy_specs,
+    module.valkey.proxy_specs,
+    module.runtime_installer.proxy_specs,
+    module.ports.proxy_specs
+  )
+
+  # Combine environment variables
+  all_env_vars = merge(
+    module.postgres.env_vars,
+    module.valkey.env_vars,
+    module.runtime_installer.env_vars,
+    module.ports.env_vars
+  )
+
+  # Combine hostnames for IPv4 resolution
+  all_hostnames = distinct(concat(
+    module.postgres.hostnames,
+    module.valkey.hostnames,
+    module.runtime_installer.hostnames,
+    module.ports.hostnames
+  ))
+
+  # Standard proxy setup script (reusable)
+  proxy_setup_script = length(local.all_proxy_specs) > 0 ? <<-EOT
+    # Set up port forwarding for services
+    PROXY_SPECS='${jsonencode(local.all_proxy_specs)}'
+    if [ -n "$PROXY_SPECS" ] && [ "$PROXY_SPECS" != "[]" ]; then
+      echo "Setting up service proxies..."
+      echo "$PROXY_SPECS" | jq -r '.[] | "Starting proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
+      echo "$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
+    fi
+  EOT : ""
+}
+
 # ========== Providers and data sources ==========
 
 data "coder_external_auth" "github" {
@@ -159,38 +227,23 @@ resource "coder_agent" "main" {
   startup_script = <<-EOT
     set -e
 
-    
-    # Install development runtimes (if not already installed)
-    if [ -f /tmp/install-runtimes.sh ]; then
-      echo "🚀 Running runtime installation script..."
-      bash /tmp/install-runtimes.sh 2>&1 | tee /tmp/install-runtimes.log || {
-        echo "❌ Runtime installation failed! Check /tmp/install-runtimes.log for details"
-        cat /tmp/install-runtimes.log
-        exit 1
-      }
-      echo "✅ Runtime installation complete"
-    else
-      echo "⚠️  No runtime installation script found at /tmp/install-runtimes.sh"
-    fi
+    # Module startup scripts (health checks, service initialization)
+    ${local.combined_startup_script}
+
+    # Port forwarding for all module services
+    ${local.proxy_setup_script}
 
     # Force IPv4 resolution for Docker service containers
     # Get IPv4 addresses and add to /etc/hosts to override IPv6 DNS
-    if command -v getent >/dev/null 2>&1; then
-      for service in postgres valkey pgweb cloudbeaver mathesar; do
+    ${length(local.all_hostnames) > 0 ? "HOSTNAMES='${jsonencode(local.all_hostnames)}'" : ""}
+    if [ -n "$HOSTNAMES" ] && [ "$HOSTNAMES" != "[]" ] && command -v getent >/dev/null 2>&1; then
+      echo "$HOSTNAMES" | jq -r '.[]' | while read service; do
         ipv4=$(getent ahostsv4 "$service" 2>/dev/null | awk 'NR==1 {print $1}')
         if [ -n "$ipv4" ]; then
           echo "Adding IPv4 entry for $service: $ipv4"
           echo "$ipv4 $service" | sudo tee -a /etc/hosts
         fi
       done
-    fi
-
-    # Port forwarding for postgres module services
-    PROXY_SPECS='${jsonencode(module.postgres.proxy_specs)}'
-    if [ "$PROXY_SPECS" != "[]" ] && [ "$PROXY_SPECS" != "" ]; then
-      echo "Setting up database management tool proxies..."
-      echo "$PROXY_SPECS" | jq -r '.[] | "Starting socat proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
-      echo "$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
     fi
 
     # Install pnpm for the user shell
@@ -204,7 +257,7 @@ resource "coder_agent" "main" {
       GIT_AUTHOR_EMAIL    = local.email
       GIT_COMMITTER_EMAIL = local.email
     },
-    module.postgres.env_vars
+    local.all_env_vars
   )
 
   metadata {
@@ -315,9 +368,9 @@ resource "docker_image" "main" {
   build {
     context = "./build"
     build_args = {
-      USER                = local.username
-      UBUNTU_VERSION      = local.ubuntu_version
-      ADDITIONAL_PACKAGES = local.additional_packages
+      USER           = local.username
+      UBUNTU_VERSION = local.ubuntu_version
+      PACKAGES       = join(" ", local.all_packages)
     }
     suppress_output = false
       # Enable BuildKit and log capture (required for build_log_file)
@@ -328,19 +381,19 @@ resource "docker_image" "main" {
 
   # Trigger rebuilds when any of these change:
   # - Ubuntu version parameter changes
-  # - Additional packages parameter changes
-  # - Runtime selections change (detected via script content hash)
+  # - Packages from modules or user parameters change
+  # - Install scripts change (detected via script content hash)
   # - Dockerfile is modified
   triggers = {
-    ubuntu_version      = local.ubuntu_version
-    additional_packages = local.additional_packages
-    runtime_script      = sha256(module.runtime_installer.install_script)
-    dockerfile          = filesha1("${path.module}/build/Dockerfile")
-    force = timestamp()
+    ubuntu_version = local.ubuntu_version
+    packages       = join(",", local.all_packages)
+    install_script = sha256(local.combined_install_script)
+    dockerfile     = filesha1("${path.module}/build/Dockerfile")
+    force          = timestamp()
   }
 
-  # Ensure the install script is written before building
-  depends_on = [local_file.install_runtimes_script]
+  # Ensure the install script is written before building (if it exists)
+  depends_on = [local_file.install_script]
 
 }
 

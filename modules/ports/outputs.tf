@@ -1,3 +1,42 @@
+# ========== Standard Module Outputs ==========
+
+output "enabled" {
+  description = "Whether any ports are configured"
+  value       = local.ports_count > 0
+}
+
+output "env_vars" {
+  description = "Environment variables (not used by this module)"
+  value       = {}
+}
+
+output "proxy_specs" {
+  description = "Port forwarding specifications (not used by this module)"
+  value       = []
+}
+
+output "startup_script" {
+  description = "Commands to run during agent startup (not used by this module)"
+  value       = ""
+}
+
+output "install_script" {
+  description = "Script to run during image build (not used by this module)"
+  value       = ""
+}
+
+output "packages" {
+  description = "System packages required by this module"
+  value       = []
+}
+
+output "hostnames" {
+  description = "Docker container hostnames that need IPv4 resolution"
+  value       = []
+}
+
+# ========== Module-Specific Outputs ==========
+
 output "ports_count" {
   description = "Number of ports configured by the user"
   value       = local.ports_count

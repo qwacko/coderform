@@ -46,8 +46,26 @@ module "postgres" {
 Modules are **reusable components** that:
 - Accept standardized inputs (agent_id, workspace_id, etc.)
 - Create Docker containers/volumes for services
-- Output connection details and environment variables
-- Provide `proxy_specs` for port forwarding when services run in separate containers
+- **Output 7 standard outputs for composition** (see Standard Outputs below)
+- Optionally output service-specific connection details
+
+### Standard Module Outputs
+
+**Every module must implement these 7 outputs** to enable composition in workspace templates:
+
+1. **enabled** (bool) - Whether the module is active
+2. **env_vars** (map) - Environment variables to merge into the agent
+3. **proxy_specs** (array) - Port forwarding specifications for socat
+4. **startup_script** (string) - Commands to run during agent startup
+5. **install_script** (string) - Script to run during Docker image build
+6. **packages** (array) - System packages to install in the base image
+7. **hostnames** (array) - Docker container hostnames that need IPv4 resolution
+
+These outputs are combined in the workspace template's `locals` block and applied to:
+- Docker image build args (packages)
+- Dockerfile RUN commands (install_script)
+- Agent startup_script (startup_script + proxy_specs + hostnames)
+- Agent environment variables (env_vars)
 
 ### Port Forwarding Pattern (`proxy_specs`)
 
@@ -122,15 +140,21 @@ examples/{name}/
    - Always use `lifecycle { ignore_changes = all }` for data persistence
    - Add the same standard labels as containers
 
-4. **Port Forwarding**:
-   - If service runs in a separate container, create a `proxy_specs` output
-   - Add `ports { internal = <port> }` to docker_container (don't expose to host)
-   - Point `coder_app` URLs to `localhost:<port>` (not container hostname)
+4. **Standard Outputs** (REQUIRED):
+   Every module MUST implement these 7 outputs for composition:
 
-5. **Outputs**:
-   - Always output an `enabled` boolean
-   - Provide `env_vars` map for easy agent integration
-   - Mark sensitive outputs (passwords, connection strings) with `sensitive = true`
+   - `enabled` (bool) - Whether the module/service is active
+   - `env_vars` (map, sensitive) - Environment variables to merge into agent
+   - `proxy_specs` (array) - Port forwarding specs (empty array if not needed)
+   - `startup_script` (string) - Commands to run during agent startup (empty if not needed)
+   - `install_script` (string) - Script to run during Docker build (empty if not needed)
+   - `packages` (array of strings) - System packages required (empty array if none)
+   - `hostnames` (array of strings) - Docker container hostnames for IPv4 resolution (empty array if none)
+
+5. **Module-Specific Outputs** (optional):
+   - Service connection details (host, port, password, etc.)
+   - Service-specific URLs or configuration
+   - Mark sensitive outputs with `sensitive = true`
 
 ### Standard Required Variables
 
@@ -146,19 +170,62 @@ variable "internal_network_name" {} # For Docker networking
 variable "order_offset" {}          # For parameter ordering
 ```
 
-### Environment Variables Pattern
+### Standard Outputs Examples
 
-Modules should output an `env_vars` map that can be merged into the agent:
+All modules must implement the 6 standard outputs. Here are examples:
 
 ```hcl
+# ========== Standard Module Outputs ==========
+
+output "enabled" {
+  description = "Whether this module is enabled"
+  value       = local.enabled
+}
+
 output "env_vars" {
+  description = "Environment variables for agent or containers"
   value = {
     SERVICE_ENABLED  = tostring(local.enabled)
     SERVICE_HOST     = local.enabled ? "hostname" : ""
     SERVICE_PORT     = "1234"
-    # ... other vars
   }
   sensitive = true
+}
+
+output "proxy_specs" {
+  description = "Port forwarding specifications"
+  value = local.enabled ? [{
+    name       = "service-name"
+    local_port = 8080
+    host       = "service-hostname"
+    rport      = 8080
+  }] : []
+}
+
+output "startup_script" {
+  description = "Commands to run during agent startup"
+  value = local.enabled ? <<-EOT
+    echo "Waiting for service..."
+    until curl -sf http://service:8080 >/dev/null 2>&1; do
+      sleep 1
+    done
+    echo "✅ Service is ready"
+  EOT : ""
+}
+
+output "install_script" {
+  description = "Script to run during image build"
+  value = ""  # Empty if service runs in separate container
+}
+
+output "packages" {
+  description = "System packages required by this module"
+  value = local.enabled ? ["curl", "some-client"] : []
+}
+
+output "hostnames" {
+  description = "Docker container hostnames that need IPv4 resolution"
+  value = local.enabled ? ["service-hostname"] : []
 }
 ```
 
@@ -210,23 +277,118 @@ locals {
 }
 ```
 
-### Agent Startup Script Pattern
+### Module Output Composition Pattern
 
-Standard startup script for proxy forwarding:
+In your workspace template (main.tf), combine all module outputs using locals:
+
 ```hcl
-startup_script = <<-EOT
-  set -e
+# ============================================================================
+# Module Output Composition
+# ============================================================================
 
-  # Port forwarding for module services
-  ${jsonencode(module.service.proxy_specs) != "[]" ? "PROXY_SPECS='${jsonencode(module.service.proxy_specs)}'" : ""}
-  if [ -n "$PROXY_SPECS" ] && [ "$PROXY_SPECS" != "[]" ]; then
-    echo "Setting up service proxies..."
-    echo "$PROXY_SPECS" | jq -r '.[] | "Starting socat proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
-    echo "$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
-  fi
+locals {
+  # Combine packages from all modules
+  all_packages = distinct(concat(
+    module.postgres.packages,
+    module.valkey.packages,
+    module.runtime_installer.packages
+  ))
 
-  # Other startup commands...
-EOT
+  # Combine install scripts (run during Docker build)
+  combined_install_script = join("\n\n", compact([
+    module.postgres.install_script,
+    module.valkey.install_script,
+    module.runtime_installer.install_script
+  ]))
+
+  # Combine startup scripts (run during agent startup)
+  combined_startup_script = join("\n\n", compact([
+    module.postgres.startup_script,
+    module.valkey.startup_script
+  ]))
+
+  # Combine proxy specs
+  all_proxy_specs = concat(
+    module.postgres.proxy_specs,
+    module.valkey.proxy_specs
+  )
+
+  # Combine environment variables
+  all_env_vars = merge(
+    module.postgres.env_vars,
+    module.valkey.env_vars
+  )
+
+  # Combine hostnames for IPv4 resolution
+  all_hostnames = distinct(concat(
+    module.postgres.hostnames,
+    module.valkey.hostnames
+  ))
+
+  # Standard proxy setup script (reusable)
+  proxy_setup_script = length(local.all_proxy_specs) > 0 ? <<-EOT
+    # Set up port forwarding for services
+    PROXY_SPECS='${jsonencode(local.all_proxy_specs)}'
+    if [ -n "$PROXY_SPECS" ] && [ "$PROXY_SPECS" != "[]" ]; then
+      echo "Setting up service proxies..."
+      echo "$PROXY_SPECS" | jq -r '.[] | "Starting proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
+      echo "$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
+    fi
+  EOT : ""
+
+  # IPv4 hostname resolution script (reusable)
+  ipv4_setup_script = length(local.all_hostnames) > 0 ? <<-EOT
+    # Force IPv4 resolution for Docker service containers
+    HOSTNAMES='${jsonencode(local.all_hostnames)}'
+    if [ -n "$HOSTNAMES" ] && [ "$HOSTNAMES" != "[]" ] && command -v getent >/dev/null 2>&1; then
+      echo "$HOSTNAMES" | jq -r '.[]' | while read service; do
+        ipv4=$(getent ahostsv4 "$service" 2>/dev/null | awk 'NR==1 {print $1}')
+        if [ -n "$ipv4" ]; then
+          echo "Adding IPv4 entry for $service: $ipv4"
+          echo "$ipv4 $service" | sudo tee -a /etc/hosts
+        fi
+      done
+    fi
+  EOT : ""
+}
+
+# Write combined install script to file
+resource "local_file" "install_script" {
+  count           = local.combined_install_script != "" ? 1 : 0
+  content         = local.combined_install_script
+  filename        = "${path.module}/build/install.sh"
+  file_permission = "0755"
+}
+
+# Docker image with combined packages
+resource "docker_image" "workspace" {
+  build {
+    build_args = {
+      PACKAGES = join(" ", local.all_packages)
+    }
+  }
+}
+
+# Agent with combined startup and env vars
+resource "coder_agent" "main" {
+  startup_script = <<-EOT
+    set -e
+
+    # Module startup scripts
+    ${local.combined_startup_script}
+
+    # Port forwarding
+    ${local.proxy_setup_script}
+
+    # IPv4 hostname resolution
+    ${local.ipv4_setup_script}
+  EOT
+
+  env = merge(
+    { GIT_AUTHOR_NAME = "..." },
+    local.all_env_vars
+  )
+}
 ```
 
 ## Repository Structure
