@@ -27,7 +27,10 @@ output "install_script" {
 
 output "packages" {
   description = "System packages required by this module"
-  value       = ["curl", "ca-certificates", "gnupg", "build-essential", "git"]
+  value = distinct(concat(
+    ["curl", "ca-certificates", "gnupg", "build-essential", "git"],
+    local.bun_enabled ? ["unzip"] : []
+  ))
 }
 
 output "hostnames" {
