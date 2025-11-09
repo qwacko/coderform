@@ -33,6 +33,20 @@ resource "local_file" "install_script" {
   file_permission = "0755"
 }
 
+# Write proxy specs JSON to the build directory
+resource "local_file" "proxy_specs" {
+  content         = jsonencode(local.all_proxy_specs)
+  filename        = "${path.module}/build/proxy_specs.json"
+  file_permission = "0644"
+}
+
+# Write hostnames JSON to the build directory
+resource "local_file" "hostnames" {
+  content         = jsonencode(local.all_hostnames)
+  filename        = "${path.module}/build/hostnames.json"
+  file_permission = "0644"
+}
+
 # Write combined startup script to the build directory (always written for inspection)
 resource "local_file" "startup_script" {
   content = <<-EOT
@@ -210,11 +224,10 @@ locals {
   # Standard proxy setup script (reusable)
   proxy_setup_script_raw = <<-EOT
     # Set up port forwarding for services
-    PROXY_SPECS='${jsonencode(local.all_proxy_specs)}'
-    if [ -n "$$PROXY_SPECS" ] && [ "$$PROXY_SPECS" != "[]" ]; then
+    if [ -f /tmp/proxy_specs.json ] && jq -e '. | length > 0' /tmp/proxy_specs.json >/dev/null 2>&1; then
       echo "Setting up service proxies..."
-      echo "$$PROXY_SPECS" | jq -r '.[] | "Starting proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
-      echo "$$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
+      jq -r '.[] | "Starting proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)' /tmp/proxy_specs.json
+      jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' /tmp/proxy_specs.json | bash
     fi
   EOT
   proxy_setup_script = length(local.all_proxy_specs) > 0 ? local.proxy_setup_script_raw : ""
@@ -222,13 +235,12 @@ locals {
   # IPv4 hostname resolution script (reusable)
   ipv4_setup_script_raw = <<-EOT
     # Force IPv4 resolution for Docker service containers
-    HOSTNAMES='${jsonencode(local.all_hostnames)}'
-    if [ -n "$$HOSTNAMES" ] && [ "$$HOSTNAMES" != "[]" ] && command -v getent >/dev/null 2>&1; then
-      echo "$$HOSTNAMES" | jq -r '.[]' | while read service; do
-        ipv4=$$(getent ahostsv4 "$$service" 2>/dev/null | awk 'NR==1 {print $$1}')
-        if [ -n "$$ipv4" ]; then
-          echo "Adding IPv4 entry for $$service: $$ipv4"
-          echo "$$ipv4 $$service" | sudo tee -a /etc/hosts
+    if [ -f /tmp/hostnames.json ] && command -v getent >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+      for service in $(jq -r '.[]' < /tmp/hostnames.json); do
+        ipv4=$(getent ahostsv4 "$${service}" 2>/dev/null | head -n 1 | cut -d ' ' -f 1)
+        if [ -n "$${ipv4}" ]; then
+          echo "Adding IPv4 entry for $${service}: $${ipv4}"
+          echo "$${ipv4} $${service}" | sudo tee -a /etc/hosts >/dev/null
         fi
       done
     fi
@@ -416,6 +428,7 @@ resource "docker_image" "main" {
   # - Ubuntu version parameter changes
   # - Packages from modules or user parameters change
   # - Install/startup scripts change (detected via script content hash)
+  # - Proxy specs or hostnames change (for port forwarding and IPv4 resolution)
   # - Dockerfile is modified
   # - install_runs_during_startup flag changes (affects which scripts run when)
   triggers = {
@@ -423,13 +436,20 @@ resource "docker_image" "main" {
     packages                    = join(",", local.all_packages)
     install_script              = sha256(local.combined_install_script)
     startup_script              = sha256(local.combined_startup_script)
+    proxy_specs                 = sha256(jsonencode(local.all_proxy_specs))
+    hostnames                   = sha256(jsonencode(local.all_hostnames))
     install_runs_during_startup = tostring(local.install_runs_during_startup)
     dockerfile                  = filesha1("${path.module}/build/Dockerfile")
     force                       = timestamp()
   }
 
-  # Ensure both scripts are written before building
-  depends_on = [local_file.install_script, local_file.startup_script]
+  # Ensure all scripts and JSON files are written before building
+  depends_on = [
+    local_file.install_script,
+    local_file.startup_script,
+    local_file.proxy_specs,
+    local_file.hostnames
+  ]
 
 }
 

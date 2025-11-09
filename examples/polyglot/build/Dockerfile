@@ -29,19 +29,23 @@ RUN useradd --groups sudo --shell /bin/bash ${USER} && \
     echo "${USER} ALL=(ALL) NOPASSWD:ALL" >/etc/sudoers.d/${USER} && \
     chmod 0440 /etc/sudoers.d/${USER}
 
-# Copy scripts to /tmp for execution and inspection
+# Copy scripts and JSON data files to /tmp for execution and inspection
 COPY install.sh /tmp/install.sh
-COPY startup.sh /tmp/startup.sh
-RUN chmod +x /tmp/install.sh /tmp/startup.sh
+RUN chmod +x /tmp/install.sh
 
 # Conditionally run installation script during build (based on RUN_INSTALL_AT_BUILD)
 ARG RUN_INSTALL_AT_BUILD
 RUN if [ "$RUN_INSTALL_AT_BUILD" = "true" ]; then \
-      echo "Running install script during Docker build..."; \
-      bash /tmp/install.sh; \
-    else \
-      echo "Skipping install script during build (will run at startup)"; \
-    fi
+echo "Running install script during Docker build..."; \
+bash /tmp/install.sh; \
+else \
+echo "Skipping install script during build (will run at startup)"; \
+fi
+
+COPY startup.sh /tmp/startup.sh
+COPY proxy_specs.json /tmp/proxy_specs.json
+COPY hostnames.json /tmp/hostnames.json
+RUN chmod +x /tmp/startup.sh
 
 USER ${USER}
 WORKDIR /home/${USER}

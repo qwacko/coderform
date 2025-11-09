@@ -289,6 +289,120 @@ When developing modules with `proxy_specs`:
 
 ## Common Patterns
 
+### Terraform Heredoc Escaping Rules
+
+**CRITICAL:** When writing shell scripts in Terraform heredocs, understand the escaping rules:
+
+```hcl
+# In Terraform heredoc (<<-EOT)
+script = <<-EOT
+  # ✅ CORRECT - Command substitution does NOT need escaping
+  result=$(command)
+  items=$(jq -r '.[]' file.json)
+
+  # ✅ CORRECT - Variables with braces MUST be escaped
+  echo "$${variable}"
+  echo "$${ipv4} $${service}"
+
+  # ✅ CORRECT - Simple variables should be escaped for safety
+  echo "$$var"
+EOT
+```
+
+**The Rule:**
+- `$(...)` command substitution → Use single `$` (Terraform doesn't interpret this)
+- `${variable}` shell variable → Use `$${variable}` (Terraform would interpret `${...}` as interpolation)
+- `$variable` simple variable → Use `$$variable` for safety
+
+**Common Mistake:**
+```hcl
+# ❌ WRONG - Doubling the $ in command substitution
+result=$$(command)  # This generates $(command) which is CORRECT, but unnecessary
+
+# ❌ WRONG - Not escaping braced variables
+echo "${variable}"  # Terraform tries to interpolate this as a Terraform variable!
+```
+
+### JSON Piping to jq
+
+**BEST PRACTICE:** Write JSON data to separate files instead of embedding in shell scripts:
+
+```hcl
+# Write JSON data files that will be copied into the Docker image
+resource "local_file" "proxy_specs" {
+  content         = jsonencode(local.all_proxy_specs)
+  filename        = "${path.module}/build/proxy_specs.json"
+  file_permission = "0644"
+}
+
+resource "local_file" "hostnames" {
+  content         = jsonencode(local.all_hostnames)
+  filename        = "${path.module}/build/hostnames.json"
+  file_permission = "0644"
+}
+```
+
+Then in your Dockerfile, copy these JSON files:
+```dockerfile
+COPY proxy_specs.json /tmp/proxy_specs.json
+COPY hostnames.json /tmp/hostnames.json
+```
+
+Now your shell scripts can simply read from these files:
+```bash
+# ✅ BEST - Read JSON from file with jq exit status check
+if [ -f /tmp/proxy_specs.json ] && jq -e '. | length > 0' /tmp/proxy_specs.json >/dev/null 2>&1; then
+  jq -r '.[] | "Starting proxy for " + .name' /tmp/proxy_specs.json
+fi
+
+# ✅ BEST - Iterate over JSON array using for loop (simpler, works reliably)
+for service in $(jq -r '.[]' < /tmp/hostnames.json); do
+  echo "Processing: $${service}"
+done
+```
+
+**Why this is better:**
+- **No escaping issues**: Avoids all shell variable assignment and heredoc-in-command-substitution problems
+- **Cleaner code**: Shell scripts are simple and readable, no complex Terraform interpolation
+- **Easier debugging**: You can inspect the JSON files directly in the container at `/tmp/*.json`
+- **Type safety**: Terraform validates JSON structure when writing files
+- **Rebuild triggers**: Easy to add file content hashes to Docker image rebuild triggers
+- **Simple iteration**: `for` loops with `$(jq ...)` work reliably when following proper Terraform escaping rules
+
+**Alternative (if embedding is required):**
+```bash
+# ⚠️ Use heredoc for simple piping only (not in command substitutions)
+cat << 'JSON_EOF' | jq -r '.[]'
+${jsonencode(local.all_proxy_specs)}
+JSON_EOF
+```
+
+**Never do this:**
+```bash
+# ❌ WRONG - Variable assignment breaks with multi-line JSON
+PROXY_SPECS='${jsonencode(local.all_proxy_specs)}'
+echo "$$PROXY_SPECS" | jq -r '.[]'
+
+# ❌ WRONG - Not escaping braced variables in Terraform heredoc
+echo "${variable}"  # Terraform interprets this as interpolation!
+
+# ❌ WRONG - Over-escaping command substitution
+result=$$(command)  # Unnecessary, generates $command in output
+```
+
+**Use these patterns instead:**
+```bash
+# ✅ CORRECT - Command substitution with single $
+result=$(command)
+for item in $(jq -r '.[]' /tmp/data.json); do
+
+# ✅ CORRECT - Braced variables with $$
+echo "$${variable}"
+
+# ✅ CORRECT - Use jq -e for test conditions (returns exit status)
+if jq -e '. | length > 0' /tmp/data.json >/dev/null 2>&1; then
+```
+
 ### Conditional Resources
 
 Use `count` for optional features:
@@ -364,33 +478,44 @@ locals {
     module.valkey.hostnames
   ))
 
-  # Standard proxy setup script (use heredoc-in-local pattern)
+  # Standard proxy setup script (reads from JSON file)
   proxy_setup_script_raw = <<-EOT
     # Set up port forwarding for services
-    PROXY_SPECS='${jsonencode(local.all_proxy_specs)}'
-    if [ -n "$$PROXY_SPECS" ] && [ "$$PROXY_SPECS" != "[]" ]; then
+    if [ -f /tmp/proxy_specs.json ] && jq -e '. | length > 0' /tmp/proxy_specs.json >/dev/null 2>&1; then
       echo "Setting up service proxies..."
-      echo "$$PROXY_SPECS" | jq -r '.[] | "Starting proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
-      echo "$$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
+      jq -r '.[] | "Starting proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)' /tmp/proxy_specs.json
+      jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' /tmp/proxy_specs.json | bash
     fi
   EOT
   proxy_setup_script = length(local.all_proxy_specs) > 0 ? local.proxy_setup_script_raw : ""
 
-  # IPv4 hostname resolution script (use heredoc-in-local pattern)
+  # IPv4 hostname resolution script (reads from JSON file)
   ipv4_setup_script_raw = <<-EOT
     # Force IPv4 resolution for Docker service containers
-    HOSTNAMES='${jsonencode(local.all_hostnames)}'
-    if [ -n "$$HOSTNAMES" ] && [ "$$HOSTNAMES" != "[]" ] && command -v getent >/dev/null 2>&1; then
-      echo "$$HOSTNAMES" | jq -r '.[]' | while read service; do
-        ipv4=$$(getent ahostsv4 "$$service" 2>/dev/null | awk 'NR==1 {print $$1}')
-        if [ -n "$$ipv4" ]; then
-          echo "Adding IPv4 entry for $$service: $$ipv4"
-          echo "$$ipv4 $$service" | sudo tee -a /etc/hosts
+    if [ -f /tmp/hostnames.json ] && command -v getent >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+      for service in $(jq -r '.[]' < /tmp/hostnames.json); do
+        ipv4=$(getent ahostsv4 "$${service}" 2>/dev/null | head -n 1 | cut -d ' ' -f 1)
+        if [ -n "$${ipv4}" ]; then
+          echo "Adding IPv4 entry for $${service}: $${ipv4}"
+          echo "$${ipv4} $${service}" | sudo tee -a /etc/hosts >/dev/null
         fi
       done
     fi
   EOT
   ipv4_setup_script = length(local.all_hostnames) > 0 ? local.ipv4_setup_script_raw : ""
+}
+
+# Write JSON data files for use in startup scripts
+resource "local_file" "proxy_specs" {
+  content         = jsonencode(local.all_proxy_specs)
+  filename        = "${path.module}/build/proxy_specs.json"
+  file_permission = "0644"
+}
+
+resource "local_file" "hostnames" {
+  content         = jsonencode(local.all_hostnames)
+  filename        = "${path.module}/build/hostnames.json"
+  file_permission = "0644"
 }
 
 # Write combined install script to file
@@ -404,10 +529,29 @@ resource "local_file" "install_script" {
 # Docker image with combined packages
 resource "docker_image" "workspace" {
   build {
+    context = "./build"
     build_args = {
       PACKAGES = join(" ", local.all_packages)
     }
   }
+
+  # Trigger rebuilds when content changes
+  triggers = {
+    packages       = join(",", local.all_packages)
+    install_script = sha256(local.combined_install_script)
+    startup_script = sha256(local.combined_startup_script)
+    proxy_specs    = sha256(jsonencode(local.all_proxy_specs))
+    hostnames      = sha256(jsonencode(local.all_hostnames))
+    dockerfile     = filesha1("${path.module}/build/Dockerfile")
+  }
+
+  # Ensure all files are written before building
+  depends_on = [
+    local_file.install_script,
+    local_file.startup_script,
+    local_file.proxy_specs,
+    local_file.hostnames
+  ]
 }
 
 # Agent with combined startup and env vars

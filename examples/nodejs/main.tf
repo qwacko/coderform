@@ -182,17 +182,33 @@ resource "coder_agent" "main" {
     fi
 
     # Port forwarding for module services
-    PROXY_SPECS='${jsonencode(concat(
+    PROXY_COUNT="${length(concat(
       module.postgres.proxy_specs,
       module.valkey.proxy_specs,
       module.mailhog.proxy_specs,
       module.minio.proxy_specs,
       module.apitesting.proxy_specs
-    ))}'
-    if [ "$PROXY_SPECS" != "[]" ] && [ "$PROXY_SPECS" != "" ]; then
+    ))}"
+    if [ "$PROXY_COUNT" -gt 0 ]; then
       echo "Setting up service proxies..."
-      echo "$PROXY_SPECS" | jq -r '.[] | "Starting socat proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
-      echo "$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
+      cat << 'PROXY_JSON_EOF' | jq -r '.[] | "Starting socat proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
+${jsonencode(concat(
+  module.postgres.proxy_specs,
+  module.valkey.proxy_specs,
+  module.mailhog.proxy_specs,
+  module.minio.proxy_specs,
+  module.apitesting.proxy_specs
+))}
+PROXY_JSON_EOF
+      cat << 'PROXY_JSON_EOF' | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
+${jsonencode(concat(
+  module.postgres.proxy_specs,
+  module.valkey.proxy_specs,
+  module.mailhog.proxy_specs,
+  module.minio.proxy_specs,
+  module.apitesting.proxy_specs
+))}
+PROXY_JSON_EOF
     fi
 
     # Install pnpm for the user shell
