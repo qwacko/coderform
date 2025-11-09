@@ -26,6 +26,23 @@ module "runtime_installer" {
   # python_default_package_manager = "uv"    # Options: pip, poetry, pipenv, uv, both
 }
 
+# ============================================================================
+# TUI Agent Installers Module
+# ============================================================================
+
+module "tui_agent_installers" {
+  source = "github.com/qwacko/coderform//modules/tui-agent-installers"
+
+  workspace_id = local.workspace_id
+  order_offset = 200
+
+  # Optional: Set default enabled state for each agent
+  # claude_code_default_enabled  = true
+  # opencode_default_enabled     = true
+  # openai_codex_default_enabled = true
+  # cursor_default_enabled       = true
+}
+
 # Write combined installation script to the build directory (always written for consistency)
 resource "local_file" "install_script" {
   content = local.combined_install_script != "" ? local.combined_install_script : <<-EOT
@@ -75,7 +92,7 @@ module "ports" {
   source = "github.com/qwacko/coderform//modules/ports"
 
   agent_id     = coder_agent.main.id
-  order_offset = 100
+  order_offset = 300
 }
 
 
@@ -180,6 +197,7 @@ locals {
     module.postgres.packages,
     module.valkey.packages,
     module.runtime_installer.packages,
+    module.tui_agent_installers.packages,
     module.ports.packages,
     # Split user-provided packages by space
     split(" ", local.additional_packages)
@@ -190,6 +208,7 @@ locals {
     module.postgres.install_script,
     module.valkey.install_script,
     module.runtime_installer.install_script,
+    module.tui_agent_installers.install_script,
     module.ports.install_script
   ]))
 
@@ -198,6 +217,7 @@ locals {
     module.postgres.startup_script,
     module.valkey.startup_script,
     module.runtime_installer.startup_script,
+    module.tui_agent_installers.startup_script,
     module.ports.startup_script
   ]))
 
@@ -206,6 +226,7 @@ locals {
     module.postgres.proxy_specs,
     module.valkey.proxy_specs,
     module.runtime_installer.proxy_specs,
+    module.tui_agent_installers.proxy_specs,
     module.ports.proxy_specs
   )
 
@@ -214,6 +235,7 @@ locals {
     module.postgres.env_vars,
     module.valkey.env_vars,
     module.runtime_installer.env_vars,
+    module.tui_agent_installers.env_vars,
     module.ports.env_vars
   )
 
@@ -222,6 +244,7 @@ locals {
     module.postgres.hostnames,
     module.valkey.hostnames,
     module.runtime_installer.hostnames,
+    module.tui_agent_installers.hostnames,
     module.ports.hostnames
   ))
 
