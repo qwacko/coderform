@@ -2,34 +2,82 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = ">= 2.4.0"
+      version = ">=2.4.0"
     }
     docker = {
-      source  = "kreuzwerker/docker"
-      version = "~> 3.0"
+      source = "kreuzwerker/docker"
     }
   }
 }
 
+
 # ============================================================================
-# Workspace Data
+# Runtime Installer Module
 # ============================================================================
 
-data "coder_workspace" "me" {}
-data "coder_workspace_owner" "me" {}
+module "runtime_installer" {
+  source = "github.com/qwacko/coderform//modules/runtime-installer"
 
-locals {
-  workspace_name    = data.coder_workspace.me.name
-  workspace_id      = data.coder_workspace.me.id
-  owner_id          = data.coder_workspace_owner.me.id
-  username          = data.coder_workspace_owner.me.name
-  repository        = "coderform/polyglot"
-  network_name      = "coder-${local.workspace_id}-network"
+  workspace_id = local.workspace_id
+  order_offset = 100
 }
 
-# ============================================================================
-# Base Image Configuration
-# ============================================================================
+# Write the runtime installation script to the build directory
+resource "local_file" "install_runtimes_script" {
+  content  = "#!/bin/sh\n\r${module.runtime_installer.install_script}"
+  filename = "${path.module}/build/install-runtimes.sh"
+
+  # Make the file executable
+  file_permission = "0755"
+}
+
+
+module "ports" {
+  source = "github.com/qwacko/coderform//modules/ports"
+
+  agent_id     = coder_agent.main.id
+  order_offset = 100
+}
+
+
+module "postgres" {
+  source = "github.com/qwacko/coderform//modules/postgres"
+
+  agent_id              = coder_agent.main.id
+  workspace_id          = data.coder_workspace.me.id
+  workspace_name        = data.coder_workspace.me.name
+  username              = data.coder_workspace_owner.me.name
+  owner_id              = data.coder_workspace_owner.me.id
+  repository            = local.repository
+  internal_network_name = docker_network.internal_network.name
+
+  order_offset = 90
+}
+
+module "valkey" {
+  source = "github.com/qwacko/coderform//modules/valkey"
+
+  agent_id              = coder_agent.main.id
+  workspace_id          = data.coder_workspace.me.id
+  workspace_name        = data.coder_workspace.me.name
+  username              = data.coder_workspace_owner.me.name
+  owner_id              = data.coder_workspace_owner.me.id
+  repository            = local.repository
+  internal_network_name = docker_network.internal_network.name
+  
+  order_offset = 80
+}
+
+locals {
+  username       = data.coder_workspace_owner.me.name
+  owner_id       = data.coder_workspace_owner.me.id
+  email          = data.coder_workspace_owner.me.email
+  workspace_id   = data.coder_workspace.me.id
+  workspace_name = data.coder_workspace.me.name
+  start_count    = data.coder_workspace.me.start_count
+  ubuntu_version = data.coder_parameter.ubuntu_version.value
+  additional_packages = data.coder_parameter.additional_packages.value
+}
 
 data "coder_parameter" "ubuntu_version" {
   name         = "ubuntu_version"
@@ -37,7 +85,7 @@ data "coder_parameter" "ubuntu_version" {
   description  = "Ubuntu base image version (latest = current LTS)"
   type         = "string"
   default      = "latest"
-  mutable      = false
+  mutable      = true
   order        = 5
 
   option {
@@ -58,129 +106,239 @@ data "coder_parameter" "ubuntu_version" {
   }
 }
 
+data "coder_parameter" "repository" {
+  name        = "Repository URL"
+  description = "Git URL to clone into workspace"
+  order       = 4
+  type        = "string"
+}
+
 data "coder_parameter" "additional_packages" {
-  name         = "additional_packages"
-  display_name = "Additional apt packages"
-  description  = "Space-separated list of additional apt packages to install in the base image (e.g., 'htop tmux vim')"
-  type         = "string"
-  default      = ""
-  mutable      = false
-  order        = 10
+  name        = "Additional Packages"
+  description = "Additional Packages to install"
+  order       = 3
+  type        = "string"
+  mutable      = true
 }
 
-# ============================================================================
-# Runtime Installer Module
-# ============================================================================
 
-module "runtime_installer" {
-  source = "github.com/qwacko/coderform//modules/runtime-installer"
-
-  workspace_id = local.workspace_id
-  order_offset = 100
+# Derived locals from parameters
+locals {
+  repository     = data.coder_parameter.repository.value
 }
 
-# Write the runtime installation script to the build directory
-resource "local_file" "install_runtimes_script" {
-  content  = module.runtime_installer.install_script
-  filename = "${path.module}/build/install-runtimes.sh"
+# ========== Providers and data sources ==========
 
-  # Make the file executable
-  file_permission = "0755"
+data "coder_external_auth" "github" {
+  id = "primary-github"
 }
 
-# ============================================================================
-# Optional Services
-# ============================================================================
+data "coder_provisioner" "me" {}
+provider "docker" {}
+data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
-module "postgres" {
-  source = "github.com/qwacko/coderform//modules/postgres"
+# ========== Modules ==========
 
-  agent_id             = coder_agent.main.id
-  workspace_id         = local.workspace_id
-  workspace_name       = local.workspace_name
-  username             = local.username
-  owner_id             = local.owner_id
-  repository           = local.repository
-  internal_network_name = local.network_name
-  order_offset         = 200
+module "vscode-web" {
+  source         = "https://registry.coder.com/modules/vscode-web"
+  agent_id       = coder_agent.main.id
+  accept_license = true
 }
 
-module "valkey" {
-  source = "github.com/qwacko/coderform//modules/valkey"
-
-  agent_id             = coder_agent.main.id
-  workspace_id         = local.workspace_id
-  workspace_name       = local.workspace_name
-  username             = local.username
-  owner_id             = local.owner_id
-  repository           = local.repository
-  internal_network_name = local.network_name
-  order_offset         = 300
+module "git-clone" {
+  source   = "https://registry.coder.com/modules/git-clone"
+  agent_id = coder_agent.main.id
+  url      = local.repository
 }
 
-# ============================================================================
-# Docker Network
-# ============================================================================
+# ========== Agent ==========
+
+resource "coder_agent" "main" {
+  arch           = data.coder_provisioner.me.arch
+  os             = "linux"
+  dir            = "~/coder"
+  startup_script = <<-EOT
+    set -e
+
+    # Force IPv4 resolution for Docker service containers
+    # Get IPv4 addresses and add to /etc/hosts to override IPv6 DNS
+    if command -v getent >/dev/null 2>&1; then
+      for service in postgres valkey pgweb cloudbeaver mathesar; do
+        ipv4=$(getent ahostsv4 "$service" 2>/dev/null | awk 'NR==1 {print $1}')
+        if [ -n "$ipv4" ]; then
+          echo "Adding IPv4 entry for $service: $ipv4"
+          echo "$ipv4 $service" | sudo tee -a /etc/hosts
+        fi
+      done
+    fi
+
+    # Port forwarding for postgres module services
+    PROXY_SPECS='${jsonencode(module.postgres.proxy_specs)}'
+    if [ "$PROXY_SPECS" != "[]" ] && [ "$PROXY_SPECS" != "" ]; then
+      echo "Setting up database management tool proxies..."
+      echo "$PROXY_SPECS" | jq -r '.[] | "Starting socat proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
+      echo "$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
+    fi
+
+    # Install pnpm for the user shell
+    curl -fsSL https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
+  EOT
+
+  env = merge(
+    {
+      GIT_AUTHOR_NAME     = local.username
+      GIT_COMMITTER_NAME  = local.username
+      GIT_AUTHOR_EMAIL    = local.email
+      GIT_COMMITTER_EMAIL = local.email
+    },
+    module.postgres.env_vars
+  )
+
+  metadata {
+    display_name = "CPU Usage"
+    key          = "0_cpu_usage"
+    script       = "coder stat cpu"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "RAM Usage"
+    key          = "1_ram_usage"
+    script       = "coder stat mem"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "Home Disk"
+    key          = "3_home_disk"
+    script       = "coder stat disk --path $${HOME}"
+    interval     = 60
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "CPU Usage (Host)"
+    key          = "4_cpu_usage_host"
+    script       = "coder stat cpu --host"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "Memory Usage (Host)"
+    key          = "5_mem_usage_host"
+    script       = "coder stat mem --host"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "Load Average (Host)"
+    key          = "6_load_host"
+    script = <<EOT
+      echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
+    EOT
+    interval = 60
+    timeout  = 1
+  }
+
+  metadata {
+    display_name = "Swap Usage (Host)"
+    key          = "7_swap_host"
+    script       = <<EOT
+      free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }'
+    EOT
+    interval     = 10
+    timeout      = 1
+  }
+}
+
+
+# ========== Networking and volumes ==========
 
 resource "docker_network" "internal_network" {
-  name = local.network_name
+  name     = "coder-${local.workspace_id}-network"
+  driver   = "bridge"
+  internal = true
+  ipv6 = false
+}
+
+resource "docker_volume" "home_volume" {
+  name = "coder-${local.workspace_id}-home"
+
+  lifecycle {
+    ignore_changes = all
+  }
+
   labels {
     label = "coder.owner"
     value = local.username
+  }
+  labels {
+    label = "coder.owner_id"
+    value = local.owner_id
   }
   labels {
     label = "coder.workspace_id"
     value = local.workspace_id
   }
   labels {
-    label = "coder.workspace_name"
+    label = "coder.repository"
+    value = local.repository
+  }
+  labels {
+    label = "coder.workspace_name_at_creation"
     value = local.workspace_name
   }
-  ipv6    = false
-  internal = true
 }
 
-# ============================================================================
-# Workspace Container
-# ============================================================================
+# ========== Workspace image/build ==========
 
-resource "docker_image" "workspace" {
-  name = "coder-${local.workspace_id}:latest"
+resource "docker_image" "main" {
+  name = "coder-${local.workspace_id}"
+
   build {
-    context    = "${path.module}/build"
-    dockerfile = "Dockerfile"
+    context = "./build"
     build_args = {
-      UBUNTU_VERSION      = data.coder_parameter.ubuntu_version.value
-      ADDITIONAL_PACKAGES = data.coder_parameter.additional_packages.value
+      USER            = local.username
+      UBUNTU_VERSION = local.ubuntu_version
+      ADDITIONAL_PACKAGES = local.additional_packages
+      SCRIPT = sha256(module.runtime_installer.install_script)
     }
   }
 
-  # Rebuild when base image, packages, or runtime selections change
   triggers = {
-    ubuntu_version    = data.coder_parameter.ubuntu_version.value
-    packages          = data.coder_parameter.additional_packages.value
+    # dir_sha1        = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1(f)]))
+    ubuntu_version = local.ubuntu_version
+    additional_packages = local.additional_packages
     runtime_script    = sha256(module.runtime_installer.install_script)
   }
 
+  
   # Ensure the install script is written before building
   depends_on = [local_file.install_runtimes_script]
 }
 
 resource "docker_container" "workspace" {
-  count = data.coder_workspace.me.start_count
-  image = docker_image.workspace.name
-  name  = "coder-${local.username}-${local.workspace_name}"
+  count = local.start_count
+  image = docker_image.main.name
 
-  command = ["sleep", "infinity"]
+  name     = "coder-${local.username}-${lower(local.workspace_name)}"
+  hostname = local.workspace_name
 
-  env = concat(
-    [
-      "CODER_AGENT_TOKEN=${coder_agent.main.token}",
-    ],
-    [for k, v in module.runtime_installer.env_vars : "${k}=${v}"],
-    module.postgres.enabled ? [for k, v in module.postgres.env_vars : "${k}=${v}"] : [],
-    module.valkey.enabled ? [for k, v in module.valkey.env_vars : "${k}=${v}"] : []
-  )
+  entrypoint = [
+    "sh",
+    "-c",
+    replace(
+      coder_agent.main.init_script,
+      "/localhost|127\\.0\\.0\\.1/",
+      "host.docker.internal"
+    )
+  ]
+  env = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
 
   host {
     host = "host.docker.internal"
@@ -190,10 +348,23 @@ resource "docker_container" "workspace" {
   networks_advanced {
     name = docker_network.internal_network.name
   }
+  networks_advanced {
+    name = "bridge"
+  }
+
+  volumes {
+    container_path = "/home/${local.username}"
+    volume_name    = docker_volume.home_volume.name
+    read_only      = false
+  }
 
   labels {
     label = "coder.owner"
     value = local.username
+  }
+  labels {
+    label = "coder.owner_id"
+    value = local.owner_id
   }
   labels {
     label = "coder.workspace_id"
@@ -205,60 +376,3 @@ resource "docker_container" "workspace" {
   }
 }
 
-# ============================================================================
-# Coder Agent
-# ============================================================================
-
-resource "coder_agent" "main" {
-  arch = "amd64"
-  os   = "linux"
-  dir  = "/home/coder"
-
-  startup_script_behavior = "blocking"
-
-  startup_script = <<-EOT
-    #!/bin/bash
-    set -e
-
-    echo "🚀 Starting workspace initialization..."
-
-    # =========================================================================
-    # Port Forwarding for External Services
-    # =========================================================================
-    ${module.postgres.enabled && jsonencode(module.postgres.proxy_specs) != "[]" ? "POSTGRES_PROXY_SPECS='${jsonencode(module.postgres.proxy_specs)}'" : ""}
-    if [ -n "$POSTGRES_PROXY_SPECS" ] && [ "$POSTGRES_PROXY_SPECS" != "[]" ]; then
-      echo "Setting up PostgreSQL proxies..."
-      echo "$POSTGRES_PROXY_SPECS" | jq -r '.[] | "Starting proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
-      echo "$POSTGRES_PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
-    fi
-
-    ${module.valkey.enabled && jsonencode(module.valkey.proxy_specs) != "[]" ? "VALKEY_PROXY_SPECS='${jsonencode(module.valkey.proxy_specs)}'" : ""}
-    if [ -n "$VALKEY_PROXY_SPECS" ] && [ "$VALKEY_PROXY_SPECS" != "[]" ]; then
-      echo "Setting up Valkey proxies..."
-      echo "$VALKEY_PROXY_SPECS" | jq -r '.[] | "Starting proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
-      echo "$VALKEY_PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
-    fi
-
-    echo "✅ Workspace ready!"
-  EOT
-}
-
-# ============================================================================
-# Coder Apps
-# ============================================================================
-
-resource "coder_app" "code_server" {
-  agent_id     = coder_agent.main.id
-  slug         = "code-server"
-  display_name = "VS Code Web"
-  url          = "http://localhost:13337/?folder=/home/coder"
-  icon         = "/icon/code.svg"
-  subdomain    = false
-  share        = "owner"
-
-  healthcheck {
-    url       = "http://localhost:13337/healthz"
-    interval  = 3
-    threshold = 10
-  }
-}
