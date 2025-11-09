@@ -79,14 +79,7 @@ output "proxy_specs" {
 
 output "startup_script" {
   description = "Commands to run during agent startup"
-  value = local.enabled ? <<-EOT
-    # Wait for MinIO to be ready
-    echo "Waiting for MinIO..."
-    until curl -sf http://${local.host}:${var.api_port}/minio/health/live >/dev/null 2>&1; do
-      sleep 1
-    done
-    echo "✅ MinIO is ready"
-  EOT : ""
+  value       = local.enabled ? local.startup_script_raw : ""
 }
 
 output "install_script" {

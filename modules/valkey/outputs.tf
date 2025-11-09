@@ -87,15 +87,7 @@ output "proxy_specs" {
 
 output "startup_script" {
   description = "Commands to run during agent startup"
-  value = local.enabled ? <<-EOT
-    # Test Valkey connection
-    echo "Testing Valkey connection..."
-    if redis-cli -h ${local.host} ${length(local.password) > 0 ? "-a ${local.password}" : ""} ping >/dev/null 2>&1; then
-      echo "✅ Valkey is ready"
-    else
-      echo "⚠️  Valkey not ready yet"
-    fi
-  EOT : ""
+  value       = local.enabled ? local.startup_script_raw : ""
 }
 
 output "install_script" {

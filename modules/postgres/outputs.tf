@@ -121,14 +121,7 @@ output "proxy_specs" {
 
 output "startup_script" {
   description = "Commands to run during agent startup"
-  value = local.enabled ? <<-EOT
-    # Wait for PostgreSQL to be ready
-    echo "Waiting for PostgreSQL..."
-    until pg_isready -h ${local.host} -U ${local.user} >/dev/null 2>&1; do
-      sleep 1
-    done
-    echo "✅ PostgreSQL is ready"
-  EOT : ""
+  value       = local.enabled ? local.startup_script_raw : ""
 }
 
 output "install_script" {

@@ -50,14 +50,7 @@ output "proxy_specs" {
 
 output "startup_script" {
   description = "Commands to run during agent startup"
-  value = local.enabled ? <<-EOT
-    # Wait for MailHog to be ready
-    echo "Waiting for MailHog..."
-    until curl -sf http://${local.host}:${var.http_port} >/dev/null 2>&1; do
-      sleep 1
-    done
-    echo "✅ MailHog is ready"
-  EOT : ""
+  value       = local.enabled ? local.startup_script_raw : ""
 }
 
 output "install_script" {

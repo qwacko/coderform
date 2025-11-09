@@ -26,6 +26,16 @@ data "coder_parameter" "enable_apitesting" {
 locals {
   enabled = data.coder_parameter.enable_apitesting.value
   host    = local.enabled ? "hoppscotch" : ""
+
+  # Startup script template (defined here to avoid heredoc-in-ternary parsing issues)
+  startup_script_raw = <<-EOT
+    # Wait for Hoppscotch to be ready
+    echo "Waiting for Hoppscotch..."
+    until curl -sf http://${local.host}:${var.http_port} >/dev/null 2>&1; do
+      sleep 1
+    done
+    echo "✅ Hoppscotch is ready"
+  EOT
 }
 
 # ========== Hoppscotch Volume ==========

@@ -26,6 +26,16 @@ data "coder_parameter" "enable_mailhog" {
 locals {
   enabled = data.coder_parameter.enable_mailhog.value
   host    = local.enabled ? "mailhog" : ""
+
+  # Startup script template (defined here to avoid heredoc-in-ternary parsing issues)
+  startup_script_raw = <<-EOT
+    # Wait for MailHog to be ready
+    echo "Waiting for MailHog..."
+    until curl -sf http://${local.host}:${var.http_port} >/dev/null 2>&1; do
+      sleep 1
+    done
+    echo "✅ MailHog is ready"
+  EOT
 }
 
 # ========== MailHog Container ==========

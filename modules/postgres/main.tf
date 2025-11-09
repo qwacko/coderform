@@ -123,6 +123,16 @@ locals {
   pgweb_enabled   = local.enabled && try(data.coder_parameter.enable_pgweb[0].value, false)
   mathesar_enabled = local.enabled && try(data.coder_parameter.enable_mathesar[0].value, false)
   pgadmin_enabled  = local.enabled && try(data.coder_parameter.enable_pgadmin[0].value, false)
+
+  # Startup script template (defined here to avoid heredoc-in-ternary parsing issues)
+  startup_script_raw = <<-EOT
+    # Wait for PostgreSQL to be ready
+    echo "Waiting for PostgreSQL..."
+    until pg_isready -h ${local.host} -U ${local.user} >/dev/null 2>&1; do
+      sleep 1
+    done
+    echo "✅ PostgreSQL is ready"
+  EOT
 }
 
 # ========== Postgres Volume ==========

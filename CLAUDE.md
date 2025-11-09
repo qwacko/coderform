@@ -170,11 +170,56 @@ variable "internal_network_name" {} # For Docker networking
 variable "order_offset" {}          # For parameter ordering
 ```
 
-### Standard Outputs Examples
+### IMPORTANT: Heredoc in Ternary Limitation
 
-All modules must implement the 6 standard outputs. Here are examples:
+**HCL cannot parse heredocs inside ternary operators.** This will cause parsing errors:
 
 ```hcl
+# ❌ BROKEN - Do not use heredoc inside ternary
+output "startup_script" {
+  value = local.enabled ? <<-EOT
+    echo "content"
+  EOT : ""
+}
+```
+
+**Solution:** Define the heredoc in a local variable first, then use it in the ternary:
+
+```hcl
+# ✅ CORRECT - Define heredoc separately
+locals {
+  startup_script_raw = <<-EOT
+    echo "content"
+  EOT
+}
+
+output "startup_script" {
+  value = local.enabled ? local.startup_script_raw : ""
+}
+```
+
+This pattern **must be used** for all standard outputs that contain heredocs (`startup_script`, `install_script`, etc.).
+
+### Standard Outputs Examples
+
+All modules must implement the 7 standard outputs. Here are examples:
+
+```hcl
+# In main.tf locals block - define heredoc separately
+locals {
+  enabled = data.coder_parameter.enable_service.value
+
+  # Define startup script heredoc here (not in output!)
+  startup_script_raw = <<-EOT
+    echo "Waiting for service..."
+    until curl -sf http://service:8080 >/dev/null 2>&1; do
+      sleep 1
+    done
+    echo "✅ Service is ready"
+  EOT
+}
+
+# In outputs.tf
 # ========== Standard Module Outputs ==========
 
 output "enabled" {
@@ -204,23 +249,17 @@ output "proxy_specs" {
 
 output "startup_script" {
   description = "Commands to run during agent startup"
-  value = local.enabled ? <<-EOT
-    echo "Waiting for service..."
-    until curl -sf http://service:8080 >/dev/null 2>&1; do
-      sleep 1
-    done
-    echo "✅ Service is ready"
-  EOT : ""
+  value       = local.enabled ? local.startup_script_raw : ""
 }
 
 output "install_script" {
   description = "Script to run during image build"
-  value = ""  # Empty if service runs in separate container
+  value       = ""
 }
 
 output "packages" {
   description = "System packages required by this module"
-  value = local.enabled ? ["curl", "some-client"] : []
+  value       = local.enabled ? ["curl", "some-client"] : []
 }
 
 output "hostnames" {
@@ -325,31 +364,33 @@ locals {
     module.valkey.hostnames
   ))
 
-  # Standard proxy setup script (reusable)
-  proxy_setup_script = length(local.all_proxy_specs) > 0 ? <<-EOT
+  # Standard proxy setup script (use heredoc-in-local pattern)
+  proxy_setup_script_raw = <<-EOT
     # Set up port forwarding for services
     PROXY_SPECS='${jsonencode(local.all_proxy_specs)}'
-    if [ -n "$PROXY_SPECS" ] && [ "$PROXY_SPECS" != "[]" ]; then
+    if [ -n "$$PROXY_SPECS" ] && [ "$$PROXY_SPECS" != "[]" ]; then
       echo "Setting up service proxies..."
-      echo "$PROXY_SPECS" | jq -r '.[] | "Starting proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
-      echo "$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
+      echo "$$PROXY_SPECS" | jq -r '.[] | "Starting proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
+      echo "$$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
     fi
-  EOT : ""
+  EOT
+  proxy_setup_script = length(local.all_proxy_specs) > 0 ? local.proxy_setup_script_raw : ""
 
-  # IPv4 hostname resolution script (reusable)
-  ipv4_setup_script = length(local.all_hostnames) > 0 ? <<-EOT
+  # IPv4 hostname resolution script (use heredoc-in-local pattern)
+  ipv4_setup_script_raw = <<-EOT
     # Force IPv4 resolution for Docker service containers
     HOSTNAMES='${jsonencode(local.all_hostnames)}'
-    if [ -n "$HOSTNAMES" ] && [ "$HOSTNAMES" != "[]" ] && command -v getent >/dev/null 2>&1; then
-      echo "$HOSTNAMES" | jq -r '.[]' | while read service; do
-        ipv4=$(getent ahostsv4 "$service" 2>/dev/null | awk 'NR==1 {print $1}')
-        if [ -n "$ipv4" ]; then
-          echo "Adding IPv4 entry for $service: $ipv4"
-          echo "$ipv4 $service" | sudo tee -a /etc/hosts
+    if [ -n "$$HOSTNAMES" ] && [ "$$HOSTNAMES" != "[]" ] && command -v getent >/dev/null 2>&1; then
+      echo "$$HOSTNAMES" | jq -r '.[]' | while read service; do
+        ipv4=$$(getent ahostsv4 "$$service" 2>/dev/null | awk 'NR==1 {print $$1}')
+        if [ -n "$$ipv4" ]; then
+          echo "Adding IPv4 entry for $$service: $$ipv4"
+          echo "$$ipv4 $$service" | sudo tee -a /etc/hosts
         fi
       done
     fi
-  EOT : ""
+  EOT
+  ipv4_setup_script = length(local.all_hostnames) > 0 ? local.ipv4_setup_script_raw : ""
 }
 
 # Write combined install script to file
