@@ -81,21 +81,24 @@ coder templates push polyglot
 1. Base Ubuntu image selected (latest/24.04/22.04/20.04)
 2. System packages + additional packages installed
 3. Coder user created with sudo privileges
-4. **Selected runtimes installed** (Node.js, Python, Go, Bun, Rust as selected)
-5. Installation script saved to `~/install-runtimes.sh` for debugging
-6. Image tagged and cached
+4. Runtime installation script copied to `/tmp/install-runtimes.sh`
+5. Image tagged and cached
 
 **During Workspace Startup (happens on each start):**
-1. Container starts from built image (runtimes already installed!)
+1. Container starts from built image
 2. Coder agent initializes
-3. Port forwarding set up for PostgreSQL/Valkey (if enabled)
-4. Workspace ready for development
+3. **Selected runtimes installed** (Node.js, Python, Go, Bun, Rust as selected)
+   - Output visible in agent startup logs
+   - Cached on subsequent starts if already installed
+4. Port forwarding set up for PostgreSQL/Valkey (if enabled)
+5. Workspace ready for development
 
-**Key Benefit:** Runtimes are baked into the image, so:
-- Faster workspace startups (no installation delay)
-- Build errors are visible immediately
+**Key Benefit:** Runtimes install during startup, so:
+- **Installation output is visible** in agent startup logs
+- Smart caching prevents reinstallation if already present
 - Changing runtime selections triggers automatic rebuild
-- Clean slate on every rebuild (no lingering installations)
+- First startup: 1-5 minutes (installing runtimes)
+- Subsequent startups: <10 seconds (runtimes cached)
 
 ### Module Updates and Script Loading
 
@@ -152,28 +155,33 @@ All supported Ubuntu LTS versions work with the runtime installers:
 
 **Build Time vs Startup Time:**
 
-**Docker Build** (happens when creating workspace or changing runtime selections):
+**Docker Build** (happens when creating workspace or changing parameters):
 - Ubuntu base + packages: ~1 minute
-- Node.js: +30 seconds
-- Python: +1-2 minutes (includes PPA setup)
-- Go: +30 seconds
-- Bun: +10 seconds
-- Rust: +2-3 minutes
+- Copying runtime installation script
+- **Total build time**: ~1 minute
 
-**Total build time**: 1-7 minutes depending on runtime selections
+**First Workspace Startup** (happens when workspace created):
+- Container start: ~5 seconds
+- Runtime installation (if runtimes selected):
+  - Node.js: +30 seconds
+  - Python: +1-2 minutes (includes PPA setup)
+  - Go: +30 seconds
+  - Bun: +10 seconds
+  - Rust: +2-3 minutes
+- Port forwarding setup: ~1 second
+- **Total first startup**: 1-7 minutes depending on runtime selections
 
-**Workspace Startup** (happens every time you start the workspace):
-- **<10 seconds** - Runtimes already installed in image!
-- Only port forwarding setup for services
+**Subsequent Startups** (runtimes already installed):
+- **<10 seconds** - Runtimes detected and skipped!
 
 **Rebuild Behavior:**
 - Changing Ubuntu version → full rebuild
 - Changing additional packages → full rebuild
-- Changing runtime selections → full rebuild (clean slate)
+- Changing runtime selections → script regenerated (triggers rebuild)
 - Modifying the Dockerfile → full rebuild
 - No changes → uses cached image (instant)
 
-**Trade-off:** Longer initial build time for much faster daily startups!
+**Trade-off:** Longer first startup (installing runtimes) for visibility into installation process!
 
 ## Environment Variables
 
@@ -193,24 +201,28 @@ Use these in your scripts to detect available runtimes.
 
 ### Inspect the generated installation script
 
-The runtime installation script is saved in your workspace at `~/install-runtimes.sh` for debugging:
+The runtime installation script is saved in your workspace at `/tmp/install-runtimes.sh` for debugging:
 
 ```bash
 # View the script that was executed during build
-cat ~/install-runtimes.sh
+cat /tmp/install-runtimes.sh
+
+# View the installation logs
+cat /tmp/install-runtimes.log
 
 # Re-run it manually if needed (careful - may reinstall things!)
-bash ~/install-runtimes.sh
+bash /tmp/install-runtimes.sh
 ```
 
-### Runtime installation failed during build
+### Runtime installation failed during startup
 
-If the Docker build fails during runtime installation:
+If runtime installation fails during workspace startup:
 
-1. **Check build logs** in Coder UI or CLI output - the script output will be visible
-2. **After workspace starts**, inspect the script:
+1. **Check agent startup logs** in Coder UI - the full installation output will be displayed
+2. **After workspace starts** (even if installation failed), inspect the script and logs:
    ```bash
-   cat ~/install-runtimes.sh
+   cat /tmp/install-runtimes.sh      # The script that ran
+   cat /tmp/install-runtimes.log     # Full output and errors
    ```
 3. **Debug locally** (if you have Docker and Terraform):
    ```bash

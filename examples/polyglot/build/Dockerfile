@@ -19,6 +19,7 @@ RUN apt-get update && \
       tmux \
       vim \
       wget \
+      unzip \
       ${ADDITIONAL_PACKAGES} \
     && rm -rf /var/lib/apt/lists/*
 
@@ -29,11 +30,8 @@ RUN useradd --groups sudo --shell /bin/bash ${USER} && \
     chmod 0440 /etc/sudoers.d/${USER}
 
 
-# Copy and run the runtime installation script
-COPY install-runtimes.sh /home/${USER}/install-runtimes.sh
-RUN chown ${USER}:${USER} /home/${USER}/install-runtimes.sh
-RUN chmod +x /home/${USER}/install-runtimes.sh
-RUN su - ${USER} -c "/home/${USER}/install-runtimes.sh"
+# Copy the runtime installation script to /tmp
+COPY install-runtimes.sh /tmp/install-runtimes.sh
 
 USER ${USER}
 WORKDIR /home/${USER}

@@ -159,6 +159,20 @@ resource "coder_agent" "main" {
   startup_script = <<-EOT
     set -e
 
+    
+    # Install development runtimes (if not already installed)
+    if [ -f /tmp/install-runtimes.sh ]; then
+      echo "🚀 Running runtime installation script..."
+      bash /tmp/install-runtimes.sh 2>&1 | tee /tmp/install-runtimes.log || {
+        echo "❌ Runtime installation failed! Check /tmp/install-runtimes.log for details"
+        cat /tmp/install-runtimes.log
+        exit 1
+      }
+      echo "✅ Runtime installation complete"
+    else
+      echo "⚠️  No runtime installation script found at /tmp/install-runtimes.sh"
+    fi
+
     # Force IPv4 resolution for Docker service containers
     # Get IPv4 addresses and add to /etc/hosts to override IPv6 DNS
     if command -v getent >/dev/null 2>&1; then
@@ -305,7 +319,12 @@ resource "docker_image" "main" {
       UBUNTU_VERSION      = local.ubuntu_version
       ADDITIONAL_PACKAGES = local.additional_packages
     }
+    suppress_output = false
+      # Enable BuildKit and log capture (required for build_log_file)
+    # builder         = "default"  # or "docker-container", or a custom builder name
+    # build_log_file  = "/tmp/docker-build-${local.workspace_id}.log"
   }
+
 
   # Trigger rebuilds when any of these change:
   # - Ubuntu version parameter changes
@@ -317,11 +336,12 @@ resource "docker_image" "main" {
     additional_packages = local.additional_packages
     runtime_script      = sha256(module.runtime_installer.install_script)
     dockerfile          = filesha1("${path.module}/build/Dockerfile")
+    force = timestamp()
   }
 
   # Ensure the install script is written before building
   depends_on = [local_file.install_runtimes_script]
-}
+
 }
 
 resource "docker_container" "workspace" {
