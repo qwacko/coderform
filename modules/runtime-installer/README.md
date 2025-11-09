@@ -19,13 +19,28 @@ A Terraform module that generates dynamic installation scripts for development r
 
 ## Supported Runtimes
 
-| Runtime | Versions | Notes |
-|---------|----------|-------|
-| Node.js | 18, 20, 22 | Installed via NodeSource |
-| Python  | 3.10, 3.11, 3.12 | Installed via deadsnakes PPA |
-| Go      | 1.21.6, 1.22.0 | Official binaries |
-| Bun     | latest | Installed via official installer |
-| Rust    | stable, nightly, beta | Installed via rustup |
+| Runtime | Versions | Package Managers | Notes |
+|---------|----------|------------------|-------|
+| Node.js | 18, 20, 22 | npm, yarn, pnpm, both | Installed via NodeSource |
+| Python  | 3.10, 3.11, 3.12 | pip, poetry, pipenv, uv, both | Installed via deadsnakes PPA |
+| Go      | 1.21.6, 1.22.0 | - | Official binaries |
+| Bun     | latest | - | Installed via official installer |
+| Rust    | stable, nightly, beta | - | Installed via rustup |
+
+### Package Managers
+
+**Node.js:**
+- **npm** - Included by default with Node.js
+- **yarn** - Installed via Corepack (modern Yarn Berry)
+- **pnpm** - Fast, disk space efficient package manager
+- **both** - Installs both yarn and pnpm
+
+**Python:**
+- **pip** - Included by default with Python
+- **poetry** - Modern dependency management and packaging
+- **pipenv** - Virtual environment and package management
+- **uv** - Extremely fast pip alternative from Astral (creators of Ruff)
+- **both** - Installs both poetry and uv
 
 ## Usage
 
@@ -37,6 +52,10 @@ module "runtime_installer" {
 
   workspace_id = data.coder_workspace.me.id
   order_offset = 100
+
+  # Optional: Set default package managers
+  nodejs_default_package_manager = "pnpm"
+  python_default_package_manager = "uv"
 }
 
 resource "coder_agent" "main" {
@@ -86,15 +105,18 @@ resource "coder_app" "jupyter" {
 |------|-------------|------|---------|----------|
 | workspace_id | The ID of the Coder workspace | string | - | yes |
 | order_offset | Starting order number for parameters | number | 100 | no |
+| nodejs_default_package_manager | Default Node.js package manager | string | "npm" | no |
+| python_default_package_manager | Default Python package manager | string | "pip" | no |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| install_script | Shell script to install selected runtimes (inject into agent startup_script) |
-| env_vars | Map of environment variables indicating enabled runtimes and versions |
+| install_script | Shell script to install selected runtimes and package managers (inject into agent startup_script) |
+| env_vars | Map of environment variables indicating enabled runtimes, versions, and package managers |
 | enabled | Boolean indicating if any runtimes are enabled |
-| runtimes | List of enabled runtime strings (e.g., "nodejs-20", "python-3.12") |
+| runtimes | List of enabled runtime strings with package managers (e.g., "nodejs-20 (pnpm)", "python-3.12 (uv)") |
+| package_managers | Map of package managers installed for each runtime (nodejs, python) |
 
 ## How It Works
 
@@ -104,8 +126,10 @@ The module creates Coder parameters for runtime selection:
 
 - `nodejs_enabled` (bool)
 - `nodejs_version` (string, conditional on nodejs_enabled)
+- `nodejs_package_manager` (string, conditional on nodejs_enabled)
 - `python_enabled` (bool)
 - `python_version` (string, conditional on python_enabled)
+- `python_package_manager` (string, conditional on python_enabled)
 - ... etc for each runtime
 
 ### 2. Script Compilation
@@ -147,14 +171,22 @@ This means rebuilding a workspace with the same runtimes is fast!
 
 Individual scripts are located in `scripts/`:
 
+**Runtimes:**
 - `nodejs.sh` - Node.js via NodeSource
 - `python.sh` - Python via deadsnakes PPA
 - `go.sh` - Go official binaries
 - `bun.sh` - Bun official installer
 - `rust.sh` - Rust via rustup
 
+**Package Managers:**
+- `yarn.sh` - Yarn via Corepack or npm
+- `pnpm.sh` - pnpm via npm
+- `poetry.sh` - Poetry via official installer
+- `pipenv.sh` - Pipenv via pip
+- `uv.sh` - uv via official installer
+
 Each script:
-- Accepts version as first argument
+- Accepts version/channel as first argument (where applicable)
 - Checks if already installed
 - Installs via official/recommended method
 - Adds to PATH (in ~/.bashrc if needed)
@@ -196,14 +228,16 @@ The module outputs these environment variables:
 
 ```bash
 RUNTIME_NODEJS_ENABLED=true|false
-RUNTIME_NODEJS_VERSION=20           # (if enabled)
+RUNTIME_NODEJS_VERSION=20                  # (if enabled)
+RUNTIME_NODEJS_PACKAGE_MANAGER=pnpm        # (if enabled)
 RUNTIME_PYTHON_ENABLED=true|false
-RUNTIME_PYTHON_VERSION=3.12         # (if enabled)
+RUNTIME_PYTHON_VERSION=3.12                # (if enabled)
+RUNTIME_PYTHON_PACKAGE_MANAGER=uv          # (if enabled)
 RUNTIME_GO_ENABLED=true|false
-RUNTIME_GO_VERSION=1.22.0           # (if enabled)
+RUNTIME_GO_VERSION=1.22.0                  # (if enabled)
 RUNTIME_BUN_ENABLED=true|false
 RUNTIME_RUST_ENABLED=true|false
-RUNTIME_RUST_CHANNEL=stable         # (if enabled)
+RUNTIME_RUST_CHANNEL=stable                # (if enabled)
 ```
 
 Use these in scripts or to conditionally create Coder apps.

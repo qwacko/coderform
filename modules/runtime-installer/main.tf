@@ -44,6 +44,34 @@ data "coder_parameter" "nodejs_version" {
   }
 }
 
+data "coder_parameter" "nodejs_package_manager" {
+  count        = data.coder_parameter.nodejs_enabled.value == "true" ? 1 : 0
+  name         = "nodejs_package_manager"
+  display_name = "Node.js Package Manager"
+  description  = "Package manager to install for Node.js (npm is included by default)"
+  type         = "string"
+  default      = var.nodejs_default_package_manager
+  mutable      = true
+  order        = var.order_offset + 2
+
+  option {
+    name  = "npm (default)"
+    value = "npm"
+  }
+  option {
+    name  = "Yarn"
+    value = "yarn"
+  }
+  option {
+    name  = "pnpm"
+    value = "pnpm"
+  }
+  option {
+    name  = "Yarn + pnpm"
+    value = "both"
+  }
+}
+
 data "coder_parameter" "python_enabled" {
   name         = "python_enabled"
   display_name = "Install Python"
@@ -51,7 +79,7 @@ data "coder_parameter" "python_enabled" {
   type         = "bool"
   default      = "false"
   mutable      = true
-  order        = var.order_offset + 2
+  order        = var.order_offset + 3
 }
 
 data "coder_parameter" "python_version" {
@@ -62,7 +90,7 @@ data "coder_parameter" "python_version" {
   type         = "string"
   default      = "3.12"
   mutable      = true
-  order        = var.order_offset + 3
+  order        = var.order_offset + 4
 
   option {
     name  = "Python 3.12"
@@ -78,6 +106,38 @@ data "coder_parameter" "python_version" {
   }
 }
 
+data "coder_parameter" "python_package_manager" {
+  count        = data.coder_parameter.python_enabled.value == "true" ? 1 : 0
+  name         = "python_package_manager"
+  display_name = "Python Package Manager"
+  description  = "Package manager to install for Python (pip is included by default)"
+  type         = "string"
+  default      = var.python_default_package_manager
+  mutable      = true
+  order        = var.order_offset + 5
+
+  option {
+    name  = "pip (default)"
+    value = "pip"
+  }
+  option {
+    name  = "Poetry"
+    value = "poetry"
+  }
+  option {
+    name  = "Pipenv"
+    value = "pipenv"
+  }
+  option {
+    name  = "uv (fast pip alternative)"
+    value = "uv"
+  }
+  option {
+    name  = "Poetry + uv"
+    value = "both"
+  }
+}
+
 data "coder_parameter" "go_enabled" {
   name         = "go_enabled"
   display_name = "Install Go"
@@ -85,7 +145,7 @@ data "coder_parameter" "go_enabled" {
   type         = "bool"
   default      = "false"
   mutable      = true
-  order        = var.order_offset + 4
+  order        = var.order_offset + 6
 }
 
 data "coder_parameter" "go_version" {
@@ -96,7 +156,7 @@ data "coder_parameter" "go_version" {
   type         = "string"
   default      = "1.22.0"
   mutable      = true
-  order        = var.order_offset + 5
+  order        = var.order_offset + 7
 
   option {
     name  = "Go 1.22"
@@ -115,7 +175,7 @@ data "coder_parameter" "bun_enabled" {
   type         = "bool"
   default      = "false"
   mutable      = true
-  order        = var.order_offset + 6
+  order        = var.order_offset + 8
 }
 
 data "coder_parameter" "rust_enabled" {
@@ -125,7 +185,7 @@ data "coder_parameter" "rust_enabled" {
   type         = "bool"
   default      = "false"
   mutable      = true
-  order        = var.order_offset + 7
+  order        = var.order_offset + 9
 }
 
 data "coder_parameter" "rust_channel" {
@@ -136,7 +196,7 @@ data "coder_parameter" "rust_channel" {
   type         = "string"
   default      = "stable"
   mutable      = true
-  order        = var.order_offset + 8
+  order        = var.order_offset + 10
 
   option {
     name  = "Stable"
@@ -164,12 +224,21 @@ locals {
   bun_script    = file("${path.module}/scripts/bun.sh")
   rust_script   = file("${path.module}/scripts/rust.sh")
 
-  # Get parameter values (with defaults for conditional parameters)
-  nodejs_enabled = data.coder_parameter.nodejs_enabled.value == "true"
-  nodejs_version = local.nodejs_enabled ? data.coder_parameter.nodejs_version[0].value : ""
+  # Package manager scripts
+  yarn_script   = file("${path.module}/scripts/yarn.sh")
+  pnpm_script   = file("${path.module}/scripts/pnpm.sh")
+  poetry_script = file("${path.module}/scripts/poetry.sh")
+  pipenv_script = file("${path.module}/scripts/pipenv.sh")
+  uv_script     = file("${path.module}/scripts/uv.sh")
 
-  python_enabled = data.coder_parameter.python_enabled.value == "true"
-  python_version = local.python_enabled ? data.coder_parameter.python_version[0].value : ""
+  # Get parameter values (with defaults for conditional parameters)
+  nodejs_enabled         = data.coder_parameter.nodejs_enabled.value == "true"
+  nodejs_version         = local.nodejs_enabled ? data.coder_parameter.nodejs_version[0].value : ""
+  nodejs_package_manager = local.nodejs_enabled ? data.coder_parameter.nodejs_package_manager[0].value : ""
+
+  python_enabled         = data.coder_parameter.python_enabled.value == "true"
+  python_version         = local.python_enabled ? data.coder_parameter.python_version[0].value : ""
+  python_package_manager = local.python_enabled ? data.coder_parameter.python_package_manager[0].value : ""
 
   go_enabled = data.coder_parameter.go_enabled.value == "true"
   go_version = local.go_enabled ? data.coder_parameter.go_version[0].value : ""
@@ -179,14 +248,28 @@ locals {
   rust_enabled = data.coder_parameter.rust_enabled.value == "true"
   rust_channel = local.rust_enabled ? data.coder_parameter.rust_channel[0].value : ""
 
-  # Generate installation commands for each enabled runtime
-  install_commands = [
-    local.nodejs_enabled ? "install_nodejs ${local.nodejs_version}" : "",
-    local.python_enabled ? "install_python ${local.python_version}" : "",
-    local.go_enabled ? "install_go ${local.go_version}" : "",
-    local.bun_enabled ? "install_bun latest" : "",
-    local.rust_enabled ? "install_rust ${local.rust_channel}" : "",
-  ]
+  # Generate installation commands for each enabled runtime and package manager
+  install_commands = concat(
+    # Runtime installations
+    [
+      local.nodejs_enabled ? "install_nodejs ${local.nodejs_version}" : "",
+      local.python_enabled ? "install_python ${local.python_version}" : "",
+      local.go_enabled ? "install_go ${local.go_version}" : "",
+      local.bun_enabled ? "install_bun latest" : "",
+      local.rust_enabled ? "install_rust ${local.rust_channel}" : "",
+    ],
+    # Node.js package manager installations
+    [
+      local.nodejs_enabled && contains(["yarn", "both"], local.nodejs_package_manager) ? "install_yarn" : "",
+      local.nodejs_enabled && contains(["pnpm", "both"], local.nodejs_package_manager) ? "install_pnpm" : "",
+    ],
+    # Python package manager installations
+    [
+      local.python_enabled && contains(["poetry", "both"], local.python_package_manager) ? "install_poetry" : "",
+      local.python_enabled && local.python_package_manager == "pipenv" ? "install_pipenv" : "",
+      local.python_enabled && contains(["uv", "both"], local.python_package_manager) ? "install_uv" : "",
+    ]
+  )
 
   # Filter out empty commands
   active_install_commands = [for cmd in local.install_commands : cmd if cmd != ""]
@@ -202,7 +285,7 @@ locals {
     # Update package lists once
     sudo apt-get update -qq
 
-    # Define installation functions
+    # Define runtime installation functions
     install_nodejs() {
       ${indent(2, local.nodejs_script)}
     }
@@ -223,10 +306,31 @@ locals {
       ${indent(2, local.rust_script)}
     }
 
+    # Define package manager installation functions
+    install_yarn() {
+      ${indent(2, local.yarn_script)}
+    }
+
+    install_pnpm() {
+      ${indent(2, local.pnpm_script)}
+    }
+
+    install_poetry() {
+      ${indent(2, local.poetry_script)}
+    }
+
+    install_pipenv() {
+      ${indent(2, local.pipenv_script)}
+    }
+
+    install_uv() {
+      ${indent(2, local.uv_script)}
+    }
+
     # Execute installations
     ${join("\n    ", local.active_install_commands)}
 
-    echo "✅ All runtimes installed successfully!"
+    echo "✅ All runtimes and package managers installed successfully!"
   EOT
 
   # Choose between full script or empty comment
@@ -234,14 +338,16 @@ locals {
 
   # Environment variables for runtime info
   env_vars = {
-    RUNTIME_NODEJS_ENABLED = tostring(local.nodejs_enabled)
-    RUNTIME_NODEJS_VERSION = local.nodejs_version
-    RUNTIME_PYTHON_ENABLED = tostring(local.python_enabled)
-    RUNTIME_PYTHON_VERSION = local.python_version
-    RUNTIME_GO_ENABLED     = tostring(local.go_enabled)
-    RUNTIME_GO_VERSION     = local.go_version
-    RUNTIME_BUN_ENABLED    = tostring(local.bun_enabled)
-    RUNTIME_RUST_ENABLED   = tostring(local.rust_enabled)
-    RUNTIME_RUST_CHANNEL   = local.rust_channel
+    RUNTIME_NODEJS_ENABLED         = tostring(local.nodejs_enabled)
+    RUNTIME_NODEJS_VERSION         = local.nodejs_version
+    RUNTIME_NODEJS_PACKAGE_MANAGER = local.nodejs_package_manager
+    RUNTIME_PYTHON_ENABLED         = tostring(local.python_enabled)
+    RUNTIME_PYTHON_VERSION         = local.python_version
+    RUNTIME_PYTHON_PACKAGE_MANAGER = local.python_package_manager
+    RUNTIME_GO_ENABLED             = tostring(local.go_enabled)
+    RUNTIME_GO_VERSION             = local.go_version
+    RUNTIME_BUN_ENABLED            = tostring(local.bun_enabled)
+    RUNTIME_RUST_ENABLED           = tostring(local.rust_enabled)
+    RUNTIME_RUST_CHANNEL           = local.rust_channel
   }
 }

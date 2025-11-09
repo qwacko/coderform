@@ -20,6 +20,10 @@ module "runtime_installer" {
 
   workspace_id = local.workspace_id
   order_offset = 100
+
+  # Optional: Set default package managers for runtimes
+  # nodejs_default_package_manager = "pnpm"  # Options: npm, yarn, pnpm, both
+  # python_default_package_manager = "uv"    # Options: pip, poetry, pipenv, uv, both
 }
 
 # Write combined installation script to the build directory (always written for consistency)
@@ -419,8 +423,8 @@ resource "docker_image" "main" {
     }
     suppress_output = false
       # Enable BuildKit and log capture (required for build_log_file)
-    builder         = "default"  # or "docker-container", or a custom builder name
-    build_log_file  = "/tmp/docker-build-${local.workspace_id}.log"
+    #builder         = "default"  # or "docker-container", or a custom builder name
+    #build_log_file  = "/tmp/docker-build-${local.workspace_id}.log"
   }
 
 

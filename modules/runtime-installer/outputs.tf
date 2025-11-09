@@ -41,12 +41,20 @@ output "hostnames" {
 # ========== Module-Specific Outputs ==========
 
 output "runtimes" {
-  description = "List of enabled runtimes"
+  description = "List of enabled runtimes with their package managers"
   value = compact([
-    local.nodejs_enabled ? "nodejs-${local.nodejs_version}" : "",
-    local.python_enabled ? "python-${local.python_version}" : "",
+    local.nodejs_enabled ? "nodejs-${local.nodejs_version} (${local.nodejs_package_manager})" : "",
+    local.python_enabled ? "python-${local.python_version} (${local.python_package_manager})" : "",
     local.go_enabled ? "go-${local.go_version}" : "",
     local.bun_enabled ? "bun" : "",
     local.rust_enabled ? "rust-${local.rust_channel}" : "",
   ])
+}
+
+output "package_managers" {
+  description = "Package managers installed for each runtime"
+  value = {
+    nodejs = local.nodejs_enabled ? local.nodejs_package_manager : null
+    python = local.python_enabled ? local.python_package_manager : null
+  }
 }
