@@ -294,8 +294,6 @@ resource "coder_agent" "main" {
     echo "🚀 Running startup script..."
     bash /tmp/startup.sh
 
-    # Install pnpm for the user shell
-    curl -fsSL https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
   EOT
 
   env = merge(
