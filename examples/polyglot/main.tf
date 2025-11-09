@@ -22,11 +22,33 @@ module "runtime_installer" {
   order_offset = 100
 }
 
-# Write combined installation script to the build directory
+# Write combined installation script to the build directory (always written for consistency)
 resource "local_file" "install_script" {
-  count           = local.combined_install_script != "" ? 1 : 0
-  content         = local.combined_install_script
+  content = local.combined_install_script != "" ? local.combined_install_script : <<-EOT
+    #!/bin/bash
+    # No install script needed
+    echo "No installation steps required"
+  EOT
   filename        = "${path.module}/build/install.sh"
+  file_permission = "0755"
+}
+
+# Write combined startup script to the build directory (always written for inspection)
+resource "local_file" "startup_script" {
+  content = <<-EOT
+#!/bin/bash
+set -e
+
+# Module startup scripts (health checks, service initialization)
+${local.combined_startup_script != "" ? local.combined_startup_script : "echo 'No module startup scripts'"}
+
+# Port forwarding for all module services
+${local.proxy_setup_script != "" ? local.proxy_setup_script : "echo 'No proxy forwarding needed'"}
+
+# IPv4 hostname resolution
+${local.ipv4_setup_script != "" ? local.ipv4_setup_script : "echo 'No hostnames to resolve'"}
+EOT
+  filename        = "${path.module}/build/startup.sh"
   file_permission = "0755"
 }
 
@@ -76,6 +98,10 @@ locals {
   start_count    = data.coder_workspace.me.start_count
   ubuntu_version = data.coder_parameter.ubuntu_version.value
   additional_packages = data.coder_parameter.additional_packages.value
+
+  # Debug flag: set to true to run install script during startup instead of Docker build
+  # This makes iteration faster since you don't need to rebuild the image
+  install_runs_during_startup = false
 }
 
 data "coder_parameter" "ubuntu_version" {
@@ -182,15 +208,32 @@ locals {
   ))
 
   # Standard proxy setup script (reusable)
-  proxy_setup_script = length(local.all_proxy_specs) > 0 ? <<-EOT
+  proxy_setup_script_raw = <<-EOT
     # Set up port forwarding for services
     PROXY_SPECS='${jsonencode(local.all_proxy_specs)}'
-    if [ -n "$PROXY_SPECS" ] && [ "$PROXY_SPECS" != "[]" ]; then
+    if [ -n "$$PROXY_SPECS" ] && [ "$$PROXY_SPECS" != "[]" ]; then
       echo "Setting up service proxies..."
-      echo "$PROXY_SPECS" | jq -r '.[] | "Starting proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
-      echo "$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
+      echo "$$PROXY_SPECS" | jq -r '.[] | "Starting proxy for " + .name + ": localhost:" + (.local_port|tostring) + " -> " + .host + ":" + (.rport|tostring)'
+      echo "$$PROXY_SPECS" | jq -r '.[] | "nohup socat TCP4-LISTEN:" + (.local_port|tostring) + ",fork,reuseaddr TCP4:" + .host + ":" + (.rport|tostring) + " > /tmp/proxy-" + .name + ".log 2>&1 &"' | bash
     fi
-  EOT : ""
+  EOT
+  proxy_setup_script = length(local.all_proxy_specs) > 0 ? local.proxy_setup_script_raw : ""
+
+  # IPv4 hostname resolution script (reusable)
+  ipv4_setup_script_raw = <<-EOT
+    # Force IPv4 resolution for Docker service containers
+    HOSTNAMES='${jsonencode(local.all_hostnames)}'
+    if [ -n "$$HOSTNAMES" ] && [ "$$HOSTNAMES" != "[]" ] && command -v getent >/dev/null 2>&1; then
+      echo "$$HOSTNAMES" | jq -r '.[]' | while read service; do
+        ipv4=$$(getent ahostsv4 "$$service" 2>/dev/null | awk 'NR==1 {print $$1}')
+        if [ -n "$$ipv4" ]; then
+          echo "Adding IPv4 entry for $$service: $$ipv4"
+          echo "$$ipv4 $$service" | sudo tee -a /etc/hosts
+        fi
+      done
+    fi
+  EOT
+  ipv4_setup_script = length(local.all_hostnames) > 0 ? local.ipv4_setup_script_raw : ""
 }
 
 # ========== Providers and data sources ==========
@@ -227,24 +270,13 @@ resource "coder_agent" "main" {
   startup_script = <<-EOT
     set -e
 
-    # Module startup scripts (health checks, service initialization)
-    ${local.combined_startup_script}
+    # Conditionally run install script at startup (debug mode)
+    ${local.install_runs_during_startup ? "echo '🔧 Running install script at startup (debug mode)...'" : ""}
+    ${local.install_runs_during_startup ? "bash /tmp/install.sh" : ""}
 
-    # Port forwarding for all module services
-    ${local.proxy_setup_script}
-
-    # Force IPv4 resolution for Docker service containers
-    # Get IPv4 addresses and add to /etc/hosts to override IPv6 DNS
-    ${length(local.all_hostnames) > 0 ? "HOSTNAMES='${jsonencode(local.all_hostnames)}'" : ""}
-    if [ -n "$HOSTNAMES" ] && [ "$HOSTNAMES" != "[]" ] && command -v getent >/dev/null 2>&1; then
-      echo "$HOSTNAMES" | jq -r '.[]' | while read service; do
-        ipv4=$(getent ahostsv4 "$service" 2>/dev/null | awk 'NR==1 {print $1}')
-        if [ -n "$ipv4" ]; then
-          echo "Adding IPv4 entry for $service: $ipv4"
-          echo "$ipv4 $service" | sudo tee -a /etc/hosts
-        fi
-      done
-    fi
+    # Run startup script (module health checks, port forwarding, IPv4 resolution)
+    echo "🚀 Running startup script..."
+    bash /tmp/startup.sh
 
     # Install pnpm for the user shell
     curl -fsSL https://get.pnpm.io/install.sh | ENV="$HOME/.bashrc" SHELL="$(which bash)" bash -
@@ -368,9 +400,10 @@ resource "docker_image" "main" {
   build {
     context = "./build"
     build_args = {
-      USER           = local.username
-      UBUNTU_VERSION = local.ubuntu_version
-      PACKAGES       = join(" ", local.all_packages)
+      USER                  = local.username
+      UBUNTU_VERSION        = local.ubuntu_version
+      PACKAGES              = join(" ", local.all_packages)
+      RUN_INSTALL_AT_BUILD  = local.install_runs_during_startup ? "false" : "true"
     }
     suppress_output = false
       # Enable BuildKit and log capture (required for build_log_file)
@@ -382,18 +415,21 @@ resource "docker_image" "main" {
   # Trigger rebuilds when any of these change:
   # - Ubuntu version parameter changes
   # - Packages from modules or user parameters change
-  # - Install scripts change (detected via script content hash)
+  # - Install/startup scripts change (detected via script content hash)
   # - Dockerfile is modified
+  # - install_runs_during_startup flag changes (affects which scripts run when)
   triggers = {
-    ubuntu_version = local.ubuntu_version
-    packages       = join(",", local.all_packages)
-    install_script = sha256(local.combined_install_script)
-    dockerfile     = filesha1("${path.module}/build/Dockerfile")
-    force          = timestamp()
+    ubuntu_version              = local.ubuntu_version
+    packages                    = join(",", local.all_packages)
+    install_script              = sha256(local.combined_install_script)
+    startup_script              = sha256(local.combined_startup_script)
+    install_runs_during_startup = tostring(local.install_runs_during_startup)
+    dockerfile                  = filesha1("${path.module}/build/Dockerfile")
+    force                       = timestamp()
   }
 
-  # Ensure the install script is written before building (if it exists)
-  depends_on = [local_file.install_script]
+  # Ensure both scripts are written before building
+  depends_on = [local_file.install_script, local_file.startup_script]
 
 }
 
