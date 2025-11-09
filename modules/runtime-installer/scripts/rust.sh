@@ -13,16 +13,23 @@ if command -v rustc &> /dev/null; then
     return 0
 fi
 
-# Install Rust via rustup
+# Install Rust via rustup (installs to $HOME/.cargo and $HOME/.rustup by default)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${CHANNEL}
 
-# Add to PATH if not already there
-if ! grep -q 'cargo/env' ~/.bashrc; then
-    echo 'source "$HOME/.cargo/env"' >> ~/.bashrc
+# Symlink binaries to /usr/local/bin (already in default PATH)
+if [ -d "$HOME/.cargo/bin" ]; then
+    for bin in "$HOME/.cargo/bin/"*; do
+        if [ -f "$bin" ]; then
+            sudo ln -sf "$bin" /usr/local/bin/$(basename "$bin")
+        fi
+    done
 fi
 
-# Make available in current session
-source "$HOME/.cargo/env"
+# Create profile.d script to set CARGO_HOME and RUSTUP_HOME for user sessions
+sudo bash -c 'cat > /etc/profile.d/rust.sh << "EOF"
+export RUSTUP_HOME=$HOME/.rustup
+export CARGO_HOME=$HOME/.cargo
+EOF'
 
 # Verify installation
 rustc --version

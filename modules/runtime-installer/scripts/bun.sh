@@ -13,16 +13,18 @@ if command -v bun &> /dev/null; then
     return 0
 fi
 
-# Install Bun
+# Install Bun (installs to $HOME/.bun by default)
 curl -fsSL https://bun.sh/install | bash
 
-# Add to PATH if not already there
-if ! grep -q 'bun/bin' ~/.bashrc; then
-    echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.bashrc
+# Symlink to /usr/local/bin (already in default PATH)
+if [ -f "$HOME/.bun/bin/bun" ]; then
+    sudo ln -sf "$HOME/.bun/bin/bun" /usr/local/bin/bun
 fi
 
-# Make available in current session
-export PATH="$HOME/.bun/bin:$PATH"
+# Create profile.d script to set BUN_INSTALL for user sessions
+sudo bash -c 'cat > /etc/profile.d/bun.sh << "EOF"
+export BUN_INSTALL=$HOME/.bun
+EOF'
 
 # Verify installation
 bun --version

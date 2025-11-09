@@ -27,13 +27,15 @@ sudo rm -rf /usr/local/go
 sudo tar -C /usr/local -xzf /tmp/go.tar.gz
 rm /tmp/go.tar.gz
 
-# Add to PATH if not already there
-if ! grep -q '/usr/local/go/bin' ~/.bashrc; then
-    echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> ~/.bashrc
-fi
+# Symlink binaries to /usr/local/bin (already in default PATH)
+sudo ln -sf /usr/local/go/bin/go /usr/local/bin/go
+sudo ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
 
-# Make available in current session
-export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+# Create profile.d script for GOPATH and additional tools
+sudo bash -c 'cat > /etc/profile.d/go.sh << "EOF"
+export GOPATH=$HOME/go
+export PATH=$PATH:$GOPATH/bin
+EOF'
 
 # Verify installation
 go version

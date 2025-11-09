@@ -419,8 +419,8 @@ resource "docker_image" "main" {
     }
     suppress_output = false
       # Enable BuildKit and log capture (required for build_log_file)
-    # builder         = "default"  # or "docker-container", or a custom builder name
-    # build_log_file  = "/tmp/docker-build-${local.workspace_id}.log"
+    builder         = "default"  # or "docker-container", or a custom builder name
+    build_log_file  = "/tmp/docker-build-${local.workspace_id}.log"
   }
 
 
