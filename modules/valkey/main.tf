@@ -105,13 +105,7 @@ locals {
 
   # Startup script template (defined here to avoid heredoc-in-ternary parsing issues)
   startup_script_raw = <<-EOT
-    # Test Valkey connection
-    echo "Testing Valkey connection..."
-    if redis-cli -h ${local.host} ${length(local.password) > 0 ? "-a ${local.password}" : ""} ping >/dev/null 2>&1; then
-      echo "✅ Valkey is ready"
-    else
-      echo "⚠️  Valkey not ready yet"
-    fi
+
   EOT
 }
 
