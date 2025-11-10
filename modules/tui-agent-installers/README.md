@@ -28,7 +28,11 @@ module "tui_agent_installers" {
 
 ## Requirements
 
-- **All TUI agents**: Automatically installs Node.js and npm system packages when any agent is enabled
+- **All TUI agents**: Automatically ensures Node.js is available before installation
+  - Checks if any version of Node.js is installed
+  - If not found, installs Node.js 24.x LTS from NodeSource
+  - Installation happens before any TUI agents are installed
+  - Includes both Node.js and npm system packages as fallback
 - **Claude Code**: Standalone installation via official installer script
 - **OpenCode**: Standalone installation via official installer script
 - **OpenAI Codex**: Uses npm for installation
@@ -98,9 +102,14 @@ locals {
 ## Notes
 
 - All agents are installed during the Docker image build phase (via `install_script`)
-- **Node.js and npm are automatically installed when any TUI agent is enabled** to ensure compatibility across all tools
+- **Node.js installation flow**:
+  1. Node.js and npm packages are included via apt for base installation
+  2. Before TUI agent installation, the script checks if Node.js is available
+  3. If no Node.js version is found, installs Node.js 24.x LTS from NodeSource
+  4. TUI agents only install if Node.js is successfully available
 - Claude Code, OpenCode, and Cursor use standalone installer scripts
 - OpenAI Codex requires npm for installation
 - Cursor CLI requires fuse and libfuse2 system packages
 - Installation scripts check for existing installations to avoid reinstalling
 - All scripts follow a consistent pattern with version checking and installation verification
+- The `ensure-nodejs.sh` script accepts any existing Node.js version and only installs if missing

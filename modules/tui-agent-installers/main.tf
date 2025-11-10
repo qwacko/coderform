@@ -56,10 +56,11 @@ data "coder_parameter" "cursor_enabled" {
 
 locals {
   # Read installation scripts
-  claude_code_script = file("${path.module}/scripts/claude-code.sh")
-  opencode_script    = file("${path.module}/scripts/opencode.sh")
-  openai_codex_script = file("${path.module}/scripts/openai-codex.sh")
-  cursor_script      = file("${path.module}/scripts/cursor.sh")
+  ensure_nodejs_script = file("${path.module}/scripts/ensure-nodejs.sh")
+  claude_code_script   = file("${path.module}/scripts/claude-code.sh")
+  opencode_script      = file("${path.module}/scripts/opencode.sh")
+  openai_codex_script  = file("${path.module}/scripts/openai-codex.sh")
+  cursor_script        = file("${path.module}/scripts/cursor.sh")
 
   # Get parameter values
   claude_code_enabled = data.coder_parameter.claude_code_enabled.value == "true"
@@ -86,6 +87,11 @@ locals {
     echo "🚀 Starting TUI agent installation..."
     echo "Workspace: ${var.workspace_id}"
 
+    # Ensure Node.js is installed before proceeding
+    echo ""
+    echo "=== Ensuring Node.js is available ==="
+    ${local.ensure_nodejs_script}
+
     # Define TUI agent installation functions
     install_claude_code() {
       ${indent(2, local.claude_code_script)}
@@ -104,6 +110,8 @@ locals {
     }
 
     # Execute installations
+    echo ""
+    echo "=== Installing TUI agents ==="
     ${join("\n    ", local.active_install_commands)}
 
     echo "✅ All TUI agents installed successfully!"
