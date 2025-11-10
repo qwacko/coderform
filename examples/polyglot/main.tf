@@ -134,9 +134,9 @@ locals {
   ubuntu_version = data.coder_parameter.ubuntu_version.value
   additional_packages = data.coder_parameter.additional_packages.value
 
-  # Debug flag: set to true to run install script during startup instead of Docker build
+  # Debug flag: run install script during startup instead of Docker build
   # This makes iteration faster since you don't need to rebuild the image
-  install_runs_during_startup = false
+  install_runs_during_startup = data.coder_parameter.install_runs_during_startup.value == "true"
 }
 
 data "coder_parameter" "ubuntu_version" {
@@ -178,7 +178,17 @@ data "coder_parameter" "additional_packages" {
   description = "Additional Packages to install"
   order       = 3
   type        = "string"
+  mutable     = true
+}
+
+data "coder_parameter" "install_runs_during_startup" {
+  name         = "install_runs_during_startup"
+  display_name = "Debug: Run Install at Startup"
+  description  = "Run install script during startup instead of Docker build (faster iteration, slower startup)"
+  type         = "bool"
+  default      = "false"
   mutable      = true
+  order        = 6
 }
 
 
