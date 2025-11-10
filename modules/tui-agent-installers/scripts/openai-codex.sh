@@ -6,20 +6,30 @@ set -e
 
 echo "📦 Installing OpenAI Codex..."
 
+# Get npm global bin directory and add to PATH
+NPM_BIN=$(npm bin -g 2>/dev/null || echo "/usr/local/bin")
+export PATH="$NPM_BIN:$PATH"
+
 # Check if already installed
 if command -v codex &> /dev/null; then
     CURRENT_VERSION=$(codex --version 2>&1 | head -n 1 || echo "unknown")
     echo "✅ OpenAI Codex already installed: ${CURRENT_VERSION}"
 else
-    # Install OpenAI Codex using npm globally
+    # Install OpenAI Codex using npm globally (requires sudo)
     sudo npm install -g @openai/codex
+
+    # Update PATH with npm bin directory
+    NPM_BIN=$(npm bin -g 2>/dev/null || echo "/usr/local/bin")
+    export PATH="$NPM_BIN:$PATH"
 
     # Verify installation
     if command -v codex &> /dev/null; then
         codex --version || echo "OpenAI Codex installed"
         echo "✅ OpenAI Codex installed successfully"
+        echo "   Location: $(which codex)"
     else
         echo "⚠️  OpenAI Codex installed but not immediately available in PATH"
-        echo "   You may need to restart your shell or source your profile"
+        echo "   npm global bin directory: $NPM_BIN"
+        echo "   You may need to restart your shell"
     fi
 fi
