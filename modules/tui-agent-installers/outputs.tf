@@ -16,12 +16,12 @@ output "proxy_specs" {
 }
 
 output "startup_script" {
-  description = "Commands to run during agent startup (not used by this module)"
-  value       = ""
+  description = "Commands to run during agent startup to install TUI agents"
+  value       = local.startup_script
 }
 
 output "install_script" {
-  description = "Script to run during image build to install selected TUI agents"
+  description = "Script to run during image build to install Node.js and npm (agent installation happens at startup)"
   value       = local.install_script
 }
 

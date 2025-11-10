@@ -79,18 +79,30 @@ locals {
   # Filter out empty commands
   active_install_commands = [for cmd in local.install_commands : cmd if cmd != ""]
 
-  # Build the complete installation script (when agents are enabled)
-  full_install_script = <<-EOT
+  # INSTALL SCRIPT: Install Node.js and npm (runs as ROOT during Docker build)
+  install_script_raw = <<-EOT
     #!/bin/bash
     set -e
 
-    echo "🚀 Starting TUI agent installation..."
+    echo "📦 Installing Node.js and npm for TUI agents..."
     echo "Workspace: ${var.workspace_id}"
 
-    # Ensure Node.js is installed before proceeding
-    echo ""
-    echo "=== Ensuring Node.js is available ==="
+    # Install Node.js and npm (runs as root during build)
     ${local.ensure_nodejs_script}
+
+    echo "✅ Node.js and npm ready for TUI agent installation"
+  EOT
+
+  # Only install Node.js if any agents are enabled
+  install_script = length(local.active_install_commands) > 0 ? local.install_script_raw : "# No TUI agents selected for installation"
+
+  # STARTUP SCRIPT: Install TUI agents (runs as USER during agent startup)
+  startup_script_raw = <<-EOT
+    #!/bin/bash
+    set -e
+
+    echo "🚀 Installing TUI agents at startup..."
+    echo "Workspace: ${var.workspace_id}"
 
     # Define TUI agent installation functions
     install_claude_code() {
@@ -117,8 +129,8 @@ locals {
     echo "✅ All TUI agents installed successfully!"
   EOT
 
-  # Choose between full script or empty comment
-  install_script = length(local.active_install_commands) > 0 ? local.full_install_script : "# No TUI agents selected for installation"
+  # Only run startup script if any agents are enabled
+  startup_script = length(local.active_install_commands) > 0 ? local.startup_script_raw : ""
 
   # Environment variables for TUI agent info
   env_vars = {
