@@ -29,7 +29,7 @@ output "packages" {
   description = "System packages required by this module"
   value = distinct(concat(
     ["curl", "ca-certificates"],
-    local.openai_codex_enabled ? ["npm"] : [],
+    length(local.active_install_commands) > 0 ? ["nodejs", "npm"] : [],
     local.cursor_enabled ? ["fuse", "libfuse2"] : []
   ))
 }

@@ -28,10 +28,11 @@ module "tui_agent_installers" {
 
 ## Requirements
 
+- **All TUI agents**: Automatically installs Node.js and npm system packages when any agent is enabled
 - **Claude Code**: Standalone installation via official installer script
 - **OpenCode**: Standalone installation via official installer script
-- **OpenAI Codex**: Automatically installs npm system package when enabled
-- **Cursor CLI**: Standalone installation (downloads AppImage)
+- **OpenAI Codex**: Uses npm for installation
+- **Cursor CLI**: Standalone installation (downloads AppImage), requires fuse and libfuse2
 
 ## Standard Module Outputs
 
@@ -97,8 +98,9 @@ locals {
 ## Notes
 
 - All agents are installed during the Docker image build phase (via `install_script`)
-- OpenAI Codex automatically includes npm as a system package dependency
+- **Node.js and npm are automatically installed when any TUI agent is enabled** to ensure compatibility across all tools
 - Claude Code, OpenCode, and Cursor use standalone installer scripts
-- Cursor CLI is standalone but works best in environments with graphical support
+- OpenAI Codex requires npm for installation
+- Cursor CLI requires fuse and libfuse2 system packages
 - Installation scripts check for existing installations to avoid reinstalling
 - All scripts follow a consistent pattern with version checking and installation verification
