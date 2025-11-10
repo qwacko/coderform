@@ -12,7 +12,7 @@ if command -v opencode &> /dev/null; then
     echo "✅ OpenCode already installed: ${CURRENT_VERSION}"
 else
     # Install OpenCode using their official installer
-    curl -fsSL https://opencode.ai/install | bash
+    npm i -g opencode-ai@latest
 
     # Verify installation
     if command -v opencode &> /dev/null; then
