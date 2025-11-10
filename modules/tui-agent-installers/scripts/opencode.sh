@@ -11,8 +11,8 @@ if command -v opencode &> /dev/null; then
     CURRENT_VERSION=$(opencode --version 2>&1 | head -n 1 || echo "unknown")
     echo "✅ OpenCode already installed: ${CURRENT_VERSION}"
 else
-    # Install OpenCode using their official installer
-    npm i -g opencode-ai@latest
+    # Install OpenCode using npm globally (requires sudo)
+    sudo npm i -g opencode-ai@latest
 
     # Verify installation
     if command -v opencode &> /dev/null; then
