@@ -42,6 +42,18 @@ data "coder_parameter" "nodejs_version" {
     name  = "Node.js 22 (Current)"
     value = "22"
   }
+  option {
+    name  = "Node.js 23"
+    value = "23"
+  }
+  option {
+    name  = "Node.js 24"
+    value = "24"
+  }
+  option {
+    name  = "Node.js 25"
+    value = "25"
+  }
 }
 
 data "coder_parameter" "nodejs_package_manager" {

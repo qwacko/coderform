@@ -296,19 +296,28 @@ provider "docker" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
-# ========== Modules ==========
+# ========== Github and VSCode ==========
 
-module "vscode-web" {
-  source         = "https://registry.coder.com/modules/vscode-web"
-  agent_id       = coder_agent.main.id
-  accept_license = true
+locals {
+  repo_url      = local.repository
+  parts         = split("/", local.repo_url)
+  last_part     = local.parts[length(local.parts) - 1]
+  repo_basename = replace(local.last_part, ".git", "")
 }
 
 module "git-clone" {
   source   = "https://registry.coder.com/modules/git-clone"
   agent_id = coder_agent.main.id
-  url      = local.repository
+  url      = local.repo_url
 }
+
+module "vscode-web" {
+  source         = "https://registry.coder.com/modules/vscode-web"
+  agent_id       = coder_agent.main.id
+  accept_license = true
+  folder         = "/home/${local.username}/${local.repo_basename}"
+}
+
 
 # ========== Agent ==========
 
