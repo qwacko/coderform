@@ -78,13 +78,13 @@ resource "docker_container" "otel_lgtm" {
     aliases = ["otel-lgtm"]
   }
 
-  # Grafana UI port
+  # Grafana UI port (exposed for Coder app access)
   ports {
     internal = var.grafana_port
   }
 
-  # OTLP gRPC and HTTP ports (internal only, not exposed externally)
-  expose = [var.otlp_grpc_port, var.otlp_http_port]
+  # Note: OTLP ports (4317 gRPC, 4318 HTTP) are automatically available
+  # on the internal Docker network and don't need to be explicitly declared
 
   volumes {
     container_path = "/data"
