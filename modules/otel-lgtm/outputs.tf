@@ -73,3 +73,13 @@ output "install_script" {
   description = "Script to run during image build"
   value       = ""
 }
+
+output "packages" {
+  description = "System packages required by this module"
+  value       = []
+}
+
+output "hostnames" {
+  description = "Docker container hostnames that need IPv4 resolution"
+  value       = local.enabled ? ["otel-lgtm"] : []
+}
