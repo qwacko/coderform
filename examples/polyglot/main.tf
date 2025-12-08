@@ -124,6 +124,20 @@ module "valkey" {
   order_offset = 80
 }
 
+module "otel_lgtm" {
+  source = "github.com/qwacko/coderform//modules/otel-lgtm"
+
+  agent_id              = coder_agent.main.id
+  workspace_id          = data.coder_workspace.me.id
+  workspace_name        = data.coder_workspace.me.name
+  username              = data.coder_workspace_owner.me.name
+  owner_id              = data.coder_workspace_owner.me.id
+  repository            = local.repository
+  internal_network_name = docker_network.internal_network.name
+
+  order_offset = 70
+}
+
 locals {
   username       = data.coder_workspace_owner.me.name
   owner_id       = data.coder_workspace_owner.me.id
@@ -206,6 +220,7 @@ locals {
   all_packages = distinct(concat(
     module.postgres.packages,
     module.valkey.packages,
+    module.otel_lgtm.packages,
     module.runtime_installer.packages,
     module.tui_agent_installers.packages,
     module.ports.packages,
@@ -217,6 +232,7 @@ locals {
   combined_install_script = join("\n\n", compact([
     module.postgres.install_script,
     module.valkey.install_script,
+    module.otel_lgtm.install_script,
     module.runtime_installer.install_script,
     module.tui_agent_installers.install_script,
     module.ports.install_script
@@ -226,6 +242,7 @@ locals {
   combined_startup_script = join("\n\n", compact([
     module.postgres.startup_script,
     module.valkey.startup_script,
+    module.otel_lgtm.startup_script,
     module.runtime_installer.startup_script,
     module.tui_agent_installers.startup_script,
     module.ports.startup_script
@@ -235,6 +252,7 @@ locals {
   all_proxy_specs = concat(
     module.postgres.proxy_specs,
     module.valkey.proxy_specs,
+    module.otel_lgtm.proxy_specs,
     module.runtime_installer.proxy_specs,
     module.tui_agent_installers.proxy_specs,
     module.ports.proxy_specs
@@ -244,6 +262,7 @@ locals {
   all_env_vars = merge(
     module.postgres.env_vars,
     module.valkey.env_vars,
+    module.otel_lgtm.env_vars,
     module.runtime_installer.env_vars,
     module.tui_agent_installers.env_vars,
     module.ports.env_vars
@@ -253,6 +272,7 @@ locals {
   all_hostnames = distinct(concat(
     module.postgres.hostnames,
     module.valkey.hostnames,
+    module.otel_lgtm.hostnames,
     module.runtime_installer.hostnames,
     module.tui_agent_installers.hostnames,
     module.ports.hostnames
