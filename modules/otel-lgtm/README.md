@@ -32,36 +32,36 @@ module "otel_lgtm" {
 
 ## Inputs
 
-| Name | Description | Type | Default |
-|------|-------------|------|---------|
-| agent_id | The Coder agent ID | string | required |
-| workspace_id | The Coder workspace ID | string | required |
-| workspace_name | The Coder workspace name | string | required |
-| username | The workspace owner username | string | required |
-| owner_id | The workspace owner ID | string | required |
-| repository | Repository URL | string | required |
-| internal_network_name | Docker network name | string | required |
-| order_offset | Starting order for parameters | number | 50 |
-| default_enabled | Enable by default | bool | false |
-| grafana_port | Grafana web UI port | number | 3000 |
-| otlp_grpc_port | OTLP gRPC receiver port | number | 4317 |
-| otlp_http_port | OTLP HTTP receiver port | number | 4318 |
-| app_group | Coder app group name | string | "Observability" |
+| Name                  | Description                   | Type   | Default         |
+| --------------------- | ----------------------------- | ------ | --------------- |
+| agent_id              | The Coder agent ID            | string | required        |
+| workspace_id          | The Coder workspace ID        | string | required        |
+| workspace_name        | The Coder workspace name      | string | required        |
+| username              | The workspace owner username  | string | required        |
+| owner_id              | The workspace owner ID        | string | required        |
+| repository            | Repository URL                | string | required        |
+| internal_network_name | Docker network name           | string | required        |
+| order_offset          | Starting order for parameters | number | 50              |
+| default_enabled       | Enable by default             | bool   | false           |
+| grafana_port          | Grafana web UI port           | number | 3000            |
+| otlp_grpc_port        | OTLP gRPC receiver port       | number | 4317            |
+| otlp_http_port        | OTLP HTTP receiver port       | number | 4318            |
+| app_group             | Coder app group name          | string | "Observability" |
 
 ## Outputs
 
-| Name | Description |
-|------|-------------|
-| enabled | Whether OTEL-LGTM is enabled |
-| host | OTEL-LGTM hostname |
-| grafana_port | Grafana web UI port |
-| otlp_grpc_port | OTLP gRPC receiver port |
-| otlp_http_port | OTLP HTTP receiver port |
-| grafana_url | Internal Grafana URL |
-| otlp_grpc_endpoint | OTLP gRPC endpoint |
-| otlp_http_endpoint | OTLP HTTP endpoint |
-| env_vars | Environment variables map |
-| proxy_specs | Port forwarding configuration |
+| Name               | Description                   |
+| ------------------ | ----------------------------- |
+| enabled            | Whether OTEL-LGTM is enabled  |
+| host               | OTEL-LGTM hostname            |
+| grafana_port       | Grafana web UI port           |
+| otlp_grpc_port     | OTLP gRPC receiver port       |
+| otlp_http_port     | OTLP HTTP receiver port       |
+| grafana_url        | Internal Grafana URL          |
+| otlp_grpc_endpoint | OTLP gRPC endpoint            |
+| otlp_http_endpoint | OTLP HTTP endpoint            |
+| env_vars           | Environment variables map     |
+| proxy_specs        | Port forwarding configuration |
 
 ## Environment Variables
 
@@ -77,6 +77,7 @@ The module outputs the following environment variables for easy OpenTelemetry in
 ## What is LGTM?
 
 LGTM stands for:
+
 - **L**oki: Log aggregation system
 - **G**rafana: Metrics visualization and dashboards
 - **T**empo: Distributed tracing backend
@@ -87,6 +88,7 @@ This all-in-one stack provides a complete observability solution for OpenTelemet
 ## Accessing Grafana
 
 Once enabled, access Grafana through the Coder app interface. The default credentials are typically:
+
 - Username: `admin`
 - Password: `admin` (you'll be prompted to change this on first login)
 
@@ -126,8 +128,10 @@ tracer = trace.get_tracer(__name__)
 #### Node.js (using @opentelemetry/sdk-node)
 
 ```javascript
-const { NodeSDK } = require('@opentelemetry/sdk-node');
-const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
+const { NodeSDK } = require("@opentelemetry/sdk-node");
+const {
+  OTLPTraceExporter,
+} = require("@opentelemetry/exporter-trace-otlp-http");
 
 // The OTEL_EXPORTER_OTLP_ENDPOINT environment variable is automatically used
 const sdk = new NodeSDK({
@@ -173,6 +177,7 @@ All telemetry data (logs, traces, metrics) is stored in the `/data` volume mount
 ## Internal Network Access
 
 The OTLP receiver ports (4317 and 4318) are only accessible within the internal Docker network. This means:
+
 - ✅ Other containers in your workspace can send telemetry data
 - ✅ Applications running in the Coder agent can send telemetry data
 - ❌ External services cannot send data directly
@@ -202,7 +207,7 @@ module "otel_lgtm" {
 # Pass environment variables to your agent
 resource "coder_agent" "main" {
   # ... other configuration ...
-  
+
   env = merge(
     module.otel_lgtm.env_vars,
     # ... other env vars ...
@@ -213,16 +218,19 @@ resource "coder_agent" "main" {
 ## Troubleshooting
 
 ### Grafana not loading
+
 - Ensure the module is enabled in the workspace parameters
 - Check that port 3000 is not being used by another service
 
 ### No telemetry data appearing
+
 - Verify your application is using the correct endpoint: `http://otel-lgtm:4318` or `otel-lgtm:4317`
 - Check that your application is on the same Docker network
 - Ensure the OTEL SDK is properly initialized in your application
 - Check application logs for OTLP export errors
 
 ### Container not starting
+
 - Check Docker logs: `docker logs coder-<workspace-id>-otel-lgtm`
 - Verify sufficient resources are available
 

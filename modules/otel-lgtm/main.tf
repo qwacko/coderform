@@ -83,11 +83,8 @@ resource "docker_container" "otel_lgtm" {
     internal = var.grafana_port
   }
 
-  # OTLP gRPC port (internal only, not exposed)
-  expose = [var.otlp_grpc_port]
-
-  # OTLP HTTP port (internal only, not exposed)
-  expose = [var.otlp_http_port]
+  # OTLP gRPC and HTTP ports (internal only, not exposed externally)
+  expose = [var.otlp_grpc_port, var.otlp_http_port]
 
   volumes {
     container_path = "/data"
