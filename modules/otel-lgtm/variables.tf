@@ -68,3 +68,9 @@ variable "app_group" {
   type        = string
   default     = "Observability"
 }
+
+variable "install_mcp_grafana_default" {
+  description = "Whether to install mcp-grafana by default"
+  type        = bool
+  default     = false
+}

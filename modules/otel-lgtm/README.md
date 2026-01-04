@@ -10,13 +10,13 @@ Terraform module for provisioning Grafana OTEL-LGTM, an all-in-one OpenTelemetry
 - **Easy Integration**: Standard OTLP endpoints for instrumentation
 - **Persistent Storage**: Data persists across workspace rebuilds
 - **Internal Network**: OTLP endpoints available to all workspace containers
+- **Optional mcp-grafana**: Install the `mcp-grafana` CLI for MCP access.
 
 ## Usage
 
 ```hcl
 module "otel_lgtm" {
   source = "github.com/your-org/coderform//modules/otel-lgtm"
-
   agent_id              = coder_agent.main.id
   workspace_id          = data.coder_workspace.me.id
   workspace_name        = data.coder_workspace.me.name
@@ -24,9 +24,9 @@ module "otel_lgtm" {
   owner_id              = data.coder_workspace_owner.me.id
   repository            = data.coder_workspace.me.repository
   internal_network_name = docker_network.internal.name
-
   order_offset    = 50
   default_enabled = false
+  install_mcp_grafana_default = true
 }
 ```
 
@@ -43,6 +43,7 @@ module "otel_lgtm" {
 | internal_network_name | Docker network name           | string | required        |
 | order_offset          | Starting order for parameters | number | 50              |
 | default_enabled       | Enable by default             | bool   | false           |
+| install_mcp_grafana_default | Install mcp-grafana CLI   | bool   | false           |
 | grafana_port          | Grafana web UI port           | number | 3000            |
 | otlp_grpc_port        | OTLP gRPC receiver port       | number | 4317            |
 | otlp_http_port        | OTLP HTTP receiver port       | number | 4318            |
@@ -84,6 +85,10 @@ LGTM stands for:
 - **M**imir: Long-term metrics storage
 
 This all-in-one stack provides a complete observability solution for OpenTelemetry data.
+
+## What is mcp-grafana?
+
+`mcp-grafana` is a command-line tool that provides MCP (Multi-Cluster Panel) access to Grafana. It allows you to manage Grafana instances, dashboards, and data sources from the command line. This can be useful for automating Grafana setup and configuration.
 
 ## Accessing Grafana
 

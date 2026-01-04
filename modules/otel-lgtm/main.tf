@@ -21,15 +21,32 @@ data "coder_parameter" "enable_otel_lgtm" {
   order       = var.order_offset
 }
 
+data "coder_parameter" "install_mcp_grafana" {
+  name        = "Install mcp-grafana"
+  description = "Install mcp-grafana CLI for MCP access to Grafana"
+  type        = "bool"
+  default     = var.install_mcp_grafana_default
+  mutable     = true
+  order       = var.order_offset + 1
+}
+
 # ========== Derived Locals ==========
 
 locals {
   enabled = data.coder_parameter.enable_otel_lgtm.value
   host    = local.enabled ? "otel-lgtm" : ""
 
+  install_mcp_grafana = data.coder_parameter.install_mcp_grafana.value == "true"
+  mcp_grafana_script  = file("${path.module}/scripts/mcp-grafana.sh")
+
   # Startup script template (defined here to avoid heredoc-in-ternary parsing issues)
   startup_script_raw = <<-EOT
+    #!/bin/bash
+    set -e
+    
+    ${local.install_mcp_grafana ? local.mcp_grafana_script : ""}
 
+    ${local.install_mcp_grafana ? "install_mcp_grafana" : ""}
   EOT
 }
 

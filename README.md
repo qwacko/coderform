@@ -16,6 +16,7 @@ module "postgres" {
 ```
 
 **Available Modules:**
+
 - **[Postgres](./modules/postgres/)** - PostgreSQL with management tools (pgweb, CloudBeaver, Mathesar)
 - **[Valkey](./modules/valkey/)** - Redis-compatible in-memory data store
 - **[OTEL-LGTM](./modules/otel-lgtm/)** - Grafana LGTM stack for OpenTelemetry (Loki, Grafana, Tempo, Mimir)
@@ -26,11 +27,13 @@ module "postgres" {
 Examples are **complete workspace configurations** meant to be copied and customized, not imported as modules. They include Dockerfiles and build contexts that must be local.
 
 **Available Examples:**
+
 - **[Node.js Workspace](./examples/nodejs/)** - Complete Node.js development environment with all modules integrated
 
 #### How to Use Examples
 
 **Option 1: Copy the Example** (Recommended)
+
 ```bash
 # Copy the example to your workspace templates directory
 cp -r examples/nodejs /path/to/your/coder/templates/my-nodejs-workspace
@@ -45,6 +48,7 @@ coder templates push my-nodejs-workspace
 ```
 
 **Option 2: Download as Starter**
+
 ```bash
 # Download specific example
 curl -L https://github.com/qwacko/coderform/archive/refs/heads/main.tar.gz | \
@@ -58,11 +62,13 @@ cd coderform/examples/nodejs
 **Option 3: Use as Template in Coder**
 
 In Coder, you can create a template directly from a Git repository:
+
 1. Point to the repository: `https://github.com/qwacko/coderform`
 2. Set directory: `examples/nodejs`
 3. Create template
 
 **Why Examples Can't Be Modules:**
+
 - Examples include `build/` directories with Dockerfiles
 - Docker build contexts require local files (can't reference remote paths)
 - Examples are complete workspace configurations, not composable components
@@ -74,6 +80,7 @@ In Coder, you can create a template directly from a Git repository:
 PostgreSQL database with optional management tools (pgweb, CloudBeaver, Mathesar).
 
 **Quick Start:**
+
 ```hcl
 module "postgres" {
   source = "github.com/qwacko/coderform//modules/postgres"
@@ -99,6 +106,7 @@ Redis-compatible in-memory data store.
 Complete OpenTelemetry observability stack with Loki (logs), Grafana (visualization), Tempo (traces), and Mimir (metrics).
 
 **Quick Start:**
+
 ```hcl
 module "otel_lgtm" {
   source = "github.com/qwacko/coderform//modules/otel-lgtm"
@@ -114,6 +122,7 @@ module "otel_lgtm" {
 ```
 
 **Features:**
+
 - Pre-configured Grafana dashboard for visualization
 - OTLP endpoints (gRPC port 4317, HTTP port 4318) for telemetry ingestion
 - Automatic environment variable setup for OpenTelemetry SDKs
@@ -228,11 +237,13 @@ EOF
 ### Troubleshooting Port Forwarding
 
 #### Check if socat proxies are running
+
 ```bash
 ps aux | grep socat
 ```
 
 #### View proxy logs
+
 ```bash
 cat /tmp/proxy-pgweb.log
 cat /tmp/proxy-cloudbeaver.log
@@ -240,6 +251,7 @@ cat /tmp/proxy-mathesar.log
 ```
 
 #### Test connectivity
+
 ```bash
 # Test if the service is reachable
 curl -v http://pgweb:8081
@@ -251,11 +263,13 @@ curl -v http://localhost:8081
 #### Common Issues
 
 1. **502 Bad Gateway**:
+
    - Check if socat is running: `ps aux | grep socat`
    - Check proxy logs: `cat /tmp/proxy-*.log`
    - Verify service container is running: `docker ps`
 
 2. **Connection refused**:
+
    - Ensure `jq` and `socat` are installed in workspace
    - Check if startup script ran successfully
    - Verify containers are on the same Docker network
@@ -319,6 +333,7 @@ The nodejs example includes:
 ### Workspace Requirements
 
 For modules with `proxy_specs` output:
+
 - `jq` - JSON processor
 - `socat` - Port forwarding utility
 
