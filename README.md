@@ -18,6 +18,7 @@ module "postgres" {
 **Available Modules:**
 - **[Postgres](./modules/postgres/)** - PostgreSQL with management tools (pgweb, CloudBeaver, Mathesar)
 - **[Valkey](./modules/valkey/)** - Redis-compatible in-memory data store
+- **[OTEL-LGTM](./modules/otel-lgtm/)** - Grafana LGTM stack for OpenTelemetry (Loki, Grafana, Tempo, Mimir)
 - **[Ports](./modules/ports/)** - Configurable port exposures
 
 ### Examples (Complete Templates)
@@ -92,6 +93,34 @@ See [Postgres Module README](./modules/postgres/README.md) for full documentatio
 ### [Valkey Module](./modules/valkey/)
 
 Redis-compatible in-memory data store.
+
+### [OTEL-LGTM Module](./modules/otel-lgtm/)
+
+Complete OpenTelemetry observability stack with Loki (logs), Grafana (visualization), Tempo (traces), and Mimir (metrics).
+
+**Quick Start:**
+```hcl
+module "otel_lgtm" {
+  source = "github.com/qwacko/coderform//modules/otel-lgtm"
+
+  agent_id              = coder_agent.main.id
+  workspace_id          = data.coder_workspace.me.id
+  workspace_name        = data.coder_workspace.me.name
+  username              = data.coder_workspace_owner.me.name
+  owner_id              = data.coder_workspace_owner.me.id
+  repository            = local.repository
+  internal_network_name = docker_network.internal_network.name
+}
+```
+
+**Features:**
+- Pre-configured Grafana dashboard for visualization
+- OTLP endpoints (gRPC port 4317, HTTP port 4318) for telemetry ingestion
+- Automatic environment variable setup for OpenTelemetry SDKs
+- Persistent storage for logs, traces, and metrics
+- Internal network access for all workspace containers
+
+See [OTEL-LGTM Module README](./modules/otel-lgtm/README.md) for full documentation.
 
 ### [Ports Module](./modules/ports/)
 
@@ -249,6 +278,11 @@ coderform/
 │   │   ├── main.tf
 │   │   ├── variables.tf
 │   │   └── outputs.tf
+│   ├── otel-lgtm/        # Grafana OTEL-LGTM stack
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── README.md
 │   └── ports/            # Port exposure management
 │       ├── main.tf
 │       ├── variables.tf
