@@ -8,7 +8,7 @@ install_mcp_grafana() {
   local arch
   case "$(dpkg --print-architecture)" in
     amd64)
-      arch="amd64"
+      arch="x86_64"
       ;;
     arm64)
       arch="arm64"
@@ -19,7 +19,7 @@ install_mcp_grafana() {
       ;;
   esac
 
-  local url="https://github.com/grafana/mcp-grafana/releases/download/v${version}/mcp-grafana_${version}_linux_${arch}.tar.gz"
+  local url="https://github.com/grafana/mcp-grafana/releases/download/v${version}/mcp-grafana_Linux_${arch}.tar.gz"
 
   echo "Downloading mcp-grafana from ${url}"
   curl -L -o /tmp/mcp-grafana.tar.gz "${url}"
