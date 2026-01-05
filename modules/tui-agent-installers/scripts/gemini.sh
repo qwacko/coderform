@@ -1,3 +1,3 @@
 #!/bin/bash
 set -e
-npm install -g @google/gemini-cli
+sudo npm install -g @google/gemini-cli
