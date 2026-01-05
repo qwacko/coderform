@@ -50,6 +50,16 @@ data "coder_parameter" "cursor_enabled" {
   order        = var.order_offset + 3
 }
 
+data "coder_parameter" "gemini_enabled" {
+  name         = "gemini_enabled"
+  display_name = "Install Gemini CLI"
+  description  = "Install Google's Gemini CLI"
+  type         = "bool"
+  default      = tostring(var.gemini_default_enabled)
+  mutable      = true
+  order        = var.order_offset + 4
+}
+
 # ============================================================================
 # Script Generation Logic
 # ============================================================================
@@ -61,12 +71,14 @@ locals {
   opencode_script      = file("${path.module}/scripts/opencode.sh")
   openai_codex_script  = file("${path.module}/scripts/openai-codex.sh")
   cursor_script        = file("${path.module}/scripts/cursor.sh")
+  gemini_script        = file("${path.module}/scripts/gemini.sh")
 
   # Get parameter values
-  claude_code_enabled = data.coder_parameter.claude_code_enabled.value == "true"
-  opencode_enabled    = data.coder_parameter.opencode_enabled.value == "true"
+  claude_code_enabled  = data.coder_parameter.claude_code_enabled.value == "true"
+  opencode_enabled     = data.coder_parameter.opencode_enabled.value == "true"
   openai_codex_enabled = data.coder_parameter.openai_codex_enabled.value == "true"
-  cursor_enabled      = data.coder_parameter.cursor_enabled.value == "true"
+  cursor_enabled       = data.coder_parameter.cursor_enabled.value == "true"
+  gemini_enabled       = data.coder_parameter.gemini_enabled.value == "true"
 
   # Generate installation commands for each enabled TUI agent
   install_commands = [
@@ -74,6 +86,7 @@ locals {
     local.opencode_enabled ? "install_opencode" : "",
     local.openai_codex_enabled ? "install_openai_codex" : "",
     local.cursor_enabled ? "install_cursor" : "",
+    local.gemini_enabled ? "install_gemini" : "",
   ]
 
   # Filter out empty commands
@@ -121,6 +134,10 @@ locals {
       ${indent(2, local.cursor_script)}
     }
 
+    install_gemini() {
+      ${indent(2, local.gemini_script)}
+    }
+
     # Execute installations
     echo ""
     echo "=== Installing TUI agents ==="
@@ -134,9 +151,10 @@ locals {
 
   # Environment variables for TUI agent info
   env_vars = {
-    TUI_CLAUDE_CODE_ENABLED = tostring(local.claude_code_enabled)
-    TUI_OPENCODE_ENABLED    = tostring(local.opencode_enabled)
+    TUI_CLAUDE_CODE_ENABLED  = tostring(local.claude_code_enabled)
+    TUI_OPENCODE_ENABLED     = tostring(local.opencode_enabled)
     TUI_OPENAI_CODEX_ENABLED = tostring(local.openai_codex_enabled)
-    TUI_CURSOR_ENABLED      = tostring(local.cursor_enabled)
+    TUI_CURSOR_ENABLED       = tostring(local.cursor_enabled)
+    TUI_GEMINI_ENABLED       = tostring(local.gemini_enabled)
   }
 }

@@ -8,6 +8,7 @@ Terraform module for installing popular TUI (Terminal User Interface) agents and
 - **OpenCode**: AI coding assistant with advanced capabilities
 - **OpenAI Codex**: OpenAI's AI coding assistant
 - **Cursor CLI**: Command-line tools for the Cursor AI-first code editor
+- **Gemini CLI**: Google's official CLI for interacting with Gemini
 
 ## Usage
 
@@ -23,6 +24,7 @@ module "tui_agent_installers" {
   opencode_default_enabled    = false
   openai_codex_default_enabled = false
   cursor_default_enabled      = false
+  gemini_default_enabled      = true
 }
 ```
 
@@ -37,6 +39,7 @@ module "tui_agent_installers" {
 - **OpenCode**: Standalone installation via official installer script
 - **OpenAI Codex**: Uses npm for installation
 - **Cursor CLI**: Standalone installation (downloads AppImage), requires fuse and libfuse2
+- **Gemini CLI**: Uses npm for installation
 
 ## Standard Module Outputs
 
@@ -65,6 +68,7 @@ This module implements the 7 standard outputs required for composition:
 | opencode_default_enabled | Default state for OpenCode | bool | false |
 | openai_codex_default_enabled | Default state for OpenAI Codex | bool | false |
 | cursor_default_enabled | Default state for Cursor CLI | bool | false |
+| gemini_default_enabled | Default state for Gemini CLI | bool | false |
 
 ## Integration Example
 
@@ -73,14 +77,12 @@ This module implements the 7 standard outputs required for composition:
 
 module "runtime_installer" {
   source = "github.com/qwacko/coderform//modules/runtime-installer"
-
   workspace_id = local.workspace_id
   order_offset = 100
 }
 
 module "tui_agent_installers" {
   source = "github.com/qwacko/coderform//modules/tui-agent-installers"
-
   workspace_id = local.workspace_id
   order_offset = 200
 }
@@ -108,7 +110,7 @@ locals {
   3. If no Node.js version is found, installs Node.js 24.x LTS from NodeSource
   4. TUI agents only install if Node.js is successfully available
 - Claude Code, OpenCode, and Cursor use standalone installer scripts
-- OpenAI Codex requires npm for installation
+- OpenAI Codex and Gemini CLI require npm for installation
 - Cursor CLI requires fuse and libfuse2 system packages
 - Installation scripts check for existing installations to avoid reinstalling
 - All scripts follow a consistent pattern with version checking and installation verification

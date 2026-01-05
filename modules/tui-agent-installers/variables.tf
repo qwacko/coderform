@@ -36,3 +36,9 @@ variable "cursor_default_enabled" {
   type        = bool
   default     = false
 }
+
+variable "gemini_default_enabled" {
+  description = "Default state for Gemini installation"
+  type        = bool
+  default     = false
+}
